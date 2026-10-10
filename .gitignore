@@ -1,0 +1,30 @@
+# ---- Gradle / build output ----
+.gradle/
+build/
+*/build/
+out/
+nova-build/
+
+# ---- Fabric run directory ----
+run/
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Agent workspace data ----
+.workbuddy-ai/
+
+# ---- Upstream reference sources (third-party, GPL, not part of this project) ----
+reference/

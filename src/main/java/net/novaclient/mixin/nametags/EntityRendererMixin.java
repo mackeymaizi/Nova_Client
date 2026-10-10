@@ -1,0 +1,63 @@
+/*
+ * Copyright (c) 2026 Nova Client contributors.
+ *
+ * This source code is subject to the terms of the GNU General Public
+ * License, version 3. If a copy of the GPL was not distributed with this
+ * file, You can obtain one at: https://www.gnu.org/licenses/gpl-3.0.txt
+ */
+package net.novaclient.mixin.nametags;
+
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Share;
+import com.llamalad7.mixinextras.sugar.ref.LocalDoubleRef;
+
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.world.entity.Entity;
+import net.novaclient.NovaClient;
+import net.novaclient.module.ModuleManager;
+import net.novaclient.module.modules.render.NameTagsModule;
+
+@Mixin(EntityRenderer.class)
+public abstract class EntityRendererMixin<T extends Entity, S extends EntityRenderState>
+{
+	/** Disables the nametag distance limit if configured in NameTags. */
+	@WrapOperation(
+		method = "extractNameTags(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;FDD)V",
+		at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/client/renderer/entity/EntityRenderDispatcher;distanceToSqr(Lnet/minecraft/world/entity/Entity;)D"))
+	private double nova_fakeDistanceToCameraSq(EntityRenderDispatcher dispatcher,
+		Entity entity, Operation<Double> original,
+		@Share("nova_actualDistanceSq") LocalDoubleRef actualDistanceSq)
+	{
+		actualDistanceSq.set(original.call(dispatcher, entity));
+
+		if(NovaClient.INSTANCE != null
+			&& ModuleManager.get(NameTagsModule.class).isUnlimitedRange())
+			return 0;
+
+		return actualDistanceSq.get();
+	}
+
+	/**
+	 * Restores the true squared distance so we don't break other code that
+	 * might rely on it.
+	 */
+	@Inject(
+		method = "extractNameTags(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;FDD)V",
+		at = @At("TAIL"))
+	private void nova_restoreDistanceToCameraSq(T entity, S state,
+		float tickDelta, double nameplateDistance, double belowNameDistance,
+		CallbackInfo ci,
+		@Share("nova_actualDistanceSq") LocalDoubleRef actualDistanceSq)
+	{
+		state.distanceToCameraSq = actualDistanceSq.get();
+	}
+}

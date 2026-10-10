@@ -1,0 +1,52 @@
+{
+  "required": true,
+  "package": "net.novaclient.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "minVersion": "0.8",
+  "mixinextras": {
+    "minVersion": "0.5.0"
+  },
+  "mixins": [],
+  "client": [
+    "MinecraftMixin",
+    "KeyMappingMixin",
+    "LocalPlayerMixin",
+    "LevelRendererMixin",
+    "ConnectionMixin",
+    "ChatScreenMixin",
+    "ChatComponentMixin",
+    "CommandSuggestionsMixin",
+    "KeyboardHandlerMixin",
+    "MouseHandlerMixin",
+    "HudMixin",
+    "MultiPlayerGameModeMixin",
+    "EntityMixin",
+    "CameraMixin",
+    "GameRendererMixin",
+    "ClientTelemetryManagerMixin",
+    "ClientPacketListenerMixin",
+    "anticactus.CactusBlockMixin",
+    "snowshoe.PowderSnowBlockMixin",
+    "barrieresp.ClientLevelMixin",
+    "noslowdown.BlockMixin",
+    "noslowdown.LocalPlayerMixin",
+    "autosprint.LocalPlayerMixin",
+    "nofog.FogRendererMixin",
+    "nofog.AtmosphericFogEnvironmentMixin",
+    "nametags.EntityRendererMixin",
+    "nametags.LivingEntityRendererMixin",
+    "nametags.MobRendererMixin",
+    "healthtags.EntityRendererMixin",
+    "noshieldoverlay.ItemInHandRendererMixin",
+    "xray.ModelBlockRendererMixin",
+    "noweather.LevelMixin",
+    "chams.EntityMixin",
+    "autoreconnect.GuiMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

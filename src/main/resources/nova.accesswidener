@@ -1,0 +1,26 @@
+accessWidener	v1	official
+
+# --- Verified against Wurst7 26.2 / MC 26.2 official mappings ---
+
+# Minecraft
+accessible	method	net/minecraft/client/Minecraft	startUseItem	()V
+mutable	field	net/minecraft/client/Minecraft	rightClickDelay	I
+
+# Chat signing (NoChatReports)
+accessible	field	net/minecraft/client/multiplayer/ClientPacketListener	signedMessageEncoder	Lnet/minecraft/network/chat/SignedMessageChain$Encoder;
+mutable	field	net/minecraft/client/multiplayer/ClientPacketListener	signedMessageEncoder	Lnet/minecraft/network/chat/SignedMessageChain$Encoder;
+accessible	field	net/minecraft/client/multiplayer/ClientPacketListener	chatSession	Lnet/minecraft/network/chat/LocalChatSession;
+
+# Entity movement modifiers (NoWeb / AntiWaterPush / SpeedHack)
+accessible	field	net/minecraft/world/entity/Entity	stuckSpeedMultiplier	Lnet/minecraft/world/phys/Vec3;
+mutable	field	net/minecraft/world/entity/Entity	stuckSpeedMultiplier	Lnet/minecraft/world/phys/Vec3;
+accessible	field	net/minecraft/world/entity/LivingEntity	jumping	Z
+
+# Breaking blocks (Reach / AutoTool)
+accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyDelay	I
+mutable	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyDelay	I
+accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	isDestroying	Z
+accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyProgress	F
+
+# Screens
+accessible	field	net/minecraft/client/gui/screens/Screen	renderables	Ljava/util/List;
