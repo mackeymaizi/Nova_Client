@@ -48,6 +48,7 @@ import net.novaclient.module.modules.movement.LongJumpModule;
 import net.novaclient.module.modules.movement.NoFallModule;
 import net.novaclient.module.modules.movement.NoSlowdownModule;
 import net.novaclient.module.modules.movement.NoWebModule;
+import net.novaclient.module.modules.movement.PacketFlyModule;
 import net.novaclient.module.modules.movement.ScaffoldModule;
 import net.novaclient.module.modules.movement.SnowShoeModule;
 import net.novaclient.module.modules.movement.SpeedHackModule;
@@ -137,6 +138,7 @@ public final class ModuleManager
 		register(new AutoWalkModule());
 		register(new NoFallModule());
 		register(new BlinkModule());
+		register(new PacketFlyModule());
 
 		// render
 		register(new FullbrightModule());

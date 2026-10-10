@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "nova",
-  "version": "1.3.2-MC1.21.11",
+  "version": "1.3.3-MC1.21.11",
   "name": "Nova Client",
   "description": "A Fabric utility client for Minecraft 1.21.11. Combines features from Wurst, Meteor, Meteor Rejects and LiquidBounce.",
   "authors": [

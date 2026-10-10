@@ -1,24 +1,27 @@
-# Nova Client 测试指南
+# Nova Client 测试指南（MC 1.21.11 分支）
+
+> 这是 **1.21.11** 分支的测试指南。26.2 分支见那边仓库里的同名文件。
 
 ## 一、你需要准备的环境
 
 | 组件 | 版本 | 说明 |
 |---|---|---|
-| Minecraft | **26.2** | 必须是 26.2，其他版本不兼容 |
-| Fabric Loader | **≥ 0.18.3** | 用官方安装器装 |
-| Fabric API | **0.161.0+26.2** | 必须装，否则崩 |
-| Java | **25** | 26.2 强制要求 Java 25 |
-
-Java 25 你机器上已经有了：`C:\Program Files\Java\jdk-25.0.3`
+| Minecraft | **1.21.11** | 必须是 1.21.11，其他版本不兼容 |
+| Fabric Loader | **≥ 0.19.5** | 用官方安装器装 |
+| Fabric API | **0.141.6+1.21.11** | 必须装，否则崩 |
+| Java | **21** | 编译目标 21（用 JDK 25 跑启动器也行） |
+| Sodium | 可选（`0.8.15-beta.1`） | 装了才有 X-Ray 透墙，不装也能用 |
 
 ## 二、安装步骤
 
-1. 用 [Fabric 官方安装器](https://fabricmc.net/use/installer/) 给 26.2 装上 Fabric Loader
+1. 用 [Fabric 官方安装器](https://fabricmc.net/use/installer/) 给 1.21.11 装上 Fabric Loader
 2. 打开游戏目录的 `mods` 文件夹（启动器里一般有「打开游戏目录」按钮）
 3. 把这两个 jar 丢进去：
-   - `Nova-Client-1.2.0-MC26.2.jar`（本项目 `dist/` 目录里）
-   - `fabric-api-0.161.0+26.2.jar`（从 [Modrinth](https://modrinth.com/mod/fabric-api) 下）
-4. 启动器里选择 **Fabric 26.2** 那个版本启动
+   - `Nova-Client-1.3.3-MC1.21.11.jar`（本项目 `dist/` 目录里）
+   - `fabric-api-0.141.6+1.21.11.jar`（从 [Modrinth](https://modrinth.com/mod/fabric-api) 下）
+4. 启动器里选择 **Fabric 1.21.11** 那个版本启动
+
+> 你自己的测试实例是 `versions/外挂1.21.11/`。
 
 ## 三、启动后按这个顺序测
 
@@ -51,6 +54,7 @@ Java 25 你机器上已经有了：`C:\Program Files\Java\jdk-25.0.3`
 | 模块 | 命令 | 预期效果 |
 |---|---|---|
 | 飞行 | `.toggle flight` | 空格上升、Shift 下降、WASD 平移 |
+| 发包飞行 | `.toggle packetfly` | 空格上升、Shift 下降、WASD 平移（走数据包，不走原版物理） |
 | 高跳 | `.toggle highjump` | 跳跃高度明显变高 |
 | 爬墙 | `.toggle spider` | 顶着墙走能爬上去 |
 | 连锁挖矿 | `.toggle veinminer` | 挖一个矿，整条矿脉一起掉 |
@@ -70,40 +74,85 @@ Java 25 你机器上已经有了：`C:\Program Files\Java\jdk-25.0.3`
 | 延迟发包 | `.toggle blink` | 别人看你卡在原地，关掉后瞬移 |
 | 聊天增强 | `.toggle betterchat` | 刷屏的重复消息被吞掉 |
 
+### 6. 测 X-Ray + Sodium（v1.3.3 重点）
+前提：`mods/` 里有 Sodium `0.8.15-beta.1+mc1.21.11`。
+
+1. `.toggle xray`，站在地下往上看
+2. **预期**：只有矿物/白名单方块可见，石头全部消失
+3. 把 `.setting xray` 里的 `Opacity` 调到 100 左右
+4. **预期**：非白名单方块变成半透明，而不是完全消失
+5. **关键**：墙**后面**的矿也要看得见
+   （这是遮挡剔除那条路径，v1.3.3 修的就是它 —— 旧版这条路是坏的）
+
+### 7. 测 PacketFly（v1.3.3 新增）
+1. `.toggle packetfly`
+2. `.setting packetfly`，把 `Horizontal speed` 调到 5.2 左右先试
+3. 按空格上升、Shift 下降、WASD 平移
+4. **预期**：能飞；关掉模块后落地
+5. 想试高速：把速度调到几千甚至 100000，看服务器会不会把你拉回来
+   （`Set position` 建议保持开启，否则客户端跟不上）
+6. **注意**：能不能飞、能多快，**完全取决于服务器有没有移动校验**。
+   有正经反作弊的服务器会直接把你 rubber-band 回来，这不是客户端 bug。
+
+### 8. 测 PortalGui（v1.3.2 修过注入点）
+1. `.toggle portalgui`
+2. 打开一个箱子（保持界面）
+3. 走进下界传送门
+4. **预期**：界面不会被关掉，传送完成后箱子界面还在
+
 ## 四、崩了怎么办（重要）
 
 **抓日志**：游戏目录下的 `logs/latest.log` 和 `crash-reports/` 里最新的那个文件。
 
 在日志里搜这几个关键词，能直接定位问题：
 - `Mixin apply failed` — Mixin 注入失败，后面会写清楚是哪个类哪个方法
+- `InvalidInjectionException` — 注入签名不匹配（比如回调类型写错了）
 - `InvalidMixinException` — Mixin 配置问题
 - `NoSuchMethodError` / `NoClassDefFoundError` — API 用错了
 - `Caused by:` — 真正的根因通常在最后这个后面
 
-把 `crash-reports` 里那个文件发我，或者把 `latest.log` 里从 `---- Minecraft Crash Report ----` 开始的部分发我。
+把 `crash-reports` 里那个文件发我，或者把 `latest.log` 里从
+`---- Minecraft Crash Report ----` 开始的部分发我。
 
-**临时排查法**：如果崩了但一时找不到原因，可以编辑 jar 里的 `nova.mixins.json`，
-把 `"required": true` 改成 `"required": false`，这样单个 Mixin 失败不会崩游戏，
-但对应的功能会失效——可以用这个方法快速定位是哪个 Mixin 的问题。
+**临时排查法**：编辑 jar 里的 `nova.mixins.json`，把 `"required": true` 改成
+`"required": false`，这样单个 Mixin 失败不会崩游戏，但对应功能会失效 ——
+可以用这个方法快速定位是哪个 Mixin 的问题。
+
+> 本分支的 `injectors.defaultRequire` 目前就是 `0`（26.2 那边是 `1`），
+> 所以单个注入点对不上**不会崩游戏，只会静默失效**。
+> 想精确定位就把 `nova.mixins.json` 里的 `defaultRequire` 改成 `1` 再启动，
+> 崩的时候日志会直接点名是哪个 Mixin。
 
 ## 五、已知可能不稳的点
 
-这些地方是照着 javap 反编译的签名写的，**没有实机验证过**，如果出问题优先查：
+这些地方大多是照着 javap 反编译的签名写的，**部分没有实机验证过**，如果出问题优先查：
 
 1. **`CommandSuggestionsMixin`** — Tab 补全。如果补全不出来但不崩，是这里的注入点没命中。
-2. **`XRayModule`** — 用的是取消 `ModelBlockRenderer.tesselateBlock` 的方式。
-   如果你装了 **Sodium**，方块渲染走 Sodium 自己的管线，XRay 会失效。
+2. **X-Ray + Sodium** — v1.3.3 修了两处静默失效：
+   - `BlockRendererMixin` 两处 `@At` 的 owner 必须是 `MutableQuadViewImpl`
+     （写 `QuadViewImpl` 匹配不上，因为 javac 按接收者静态类型发射 `invokevirtual`）
+   - 关遮挡剔除改成了注入 `RenderSectionManager.shouldUseOcclusionCulling` 的返回值
+     （0.8.15 直接改 `setupTerrain` 的 boolean 是**没用的**，详见 `PORTING.md`）
+   换 Sodium 版本时这两条都要重新确认。
 3. **`ChamsModule`** — 靠 `Entity.getTeamColor()` + 发光标记。如果服务器有队伍系统可能被覆盖。
 4. **`AutoReconnectModule`** — 重连用的是 `ConnectScreen.startConnecting`，
    某些启动器的会话校验可能导致重连失败。
-5. **`ScaffoldModule` / `AutoArmorModule`** — 涉及背包点击和方块放置，不同服务器反作弊拦截程度不同。
+5. **`ScaffoldModule` / `AutoArmorModule`** — 涉及背包点击和方块放置，
+   不同服务器反作弊拦截程度不同。
 6. **`VeinMinerModule` / `NukerModule`** — 直接发破坏包，部分服务器会回弹。
+7. **`PacketFlyModule`** — 见上面第 7 节，效果取决于服务器。
+8. **ESP 类模块**（PlayerEsp / ItemEsp / HoleEsp / Trajectories / Waypoints /
+   Breadcrumbs / Search）走的是自研 RenderPipeline + 自定义 shader
+   （`assets/nova/shaders/core/fogless_lines.*`）。静态上核对过：shader 会被
+   `ShaderManager` 扫目录自动加载（不需要 `CoreShaderRegistrationCallback`），
+   但**画出来的实际效果没实测**。
 
 ## 六、当前状态
 
-- 版本：`1.2.0-MC26.2`
-- 模块：**76 个**
+- 版本：`1.3.3-MC1.21.11`
+- 模块：**78 个**
 - 命令：**29 条**
-- Mixin：**34 个**
+- Mixin：**34 个**（另有 2 个 Sodium Mixin，按需加载）
 - 编译：0 错误
-- 全部 Mixin 注入点已对着 26.2 映射 jar 逐个核对通过（方法名、参数签名、父类、字段可见性）
+- 全部 Mixin 注入点已对着 1.21.11 映射 jar 的字节码逐个核对通过
+  （方法名、参数签名、父类、字段可见性、`@At` 锚点 owner）

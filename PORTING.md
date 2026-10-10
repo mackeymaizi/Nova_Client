@@ -11,7 +11,7 @@
 | Fabric Loom | `1.18-SNAPSHOT`（`net.fabricmc.fabric-loom-remap`） |
 | Java | 编译目标 21（Gradle 用 JDK 25 跑没问题） |
 | Sodium（可选，编译期依赖） | `0.8.15-beta.1+mc1.21.11` |
-| 产物 | `dist/Nova-Client-1.3.2-MC1.21.11.jar` |
+| 产物 | `dist/Nova-Client-1.3.3-MC1.21.11.jar` |
 
 ---
 
@@ -108,12 +108,32 @@ accessible method net/minecraft/client/renderer/RenderPipelines register (Lcom/m
    `mixin/sodium` 下两个 Mixin 只在对面的 Sodium 存在时才应用。
    - `BlockRendererMixin`：在 Sodium 的 `BlockRenderer.renderModel` HEAD 取消掉白名单外的方块；
      `processQuad` / `bufferQuad` 上两个 `require = 0` 的注入负责「透明度模式」
-   - `SodiumWorldRendererMixin`：`setupTerrain` 的第一个 boolean（local slot 4）置 false，
+   - `RenderSectionManagerMixin`：X-Ray 开启时强制
+     `RenderSectionManager.shouldUseOcclusionCulling(...)` 返回 `false`，
      关闭遮挡剔除 —— 不关的话墙后的矿会被整块剔除，X-Ray 就白开了
    - 构建时会打印 3 条 `Cannot remap state/pos/level ...` 警告：
      那是 remapper 看不到 Sodium 的父类 `AbstractBlockRenderContext` 导致的，
      **无害**（字段名不在映射表里，本来就不需要 remap；运行期 Mixin 会沿继承链解析到）
    - ⚠️ 这套是**照着 0.8.15 的字节码写的**，没有实机验证过
+
+   > **踩过的坑（v1.3.3 修）**：这里一开始是照 26.2 分支写的，直接把
+   > `setupTerrain` 的第一个 boolean 置 `false`。在 Sodium **0.9.2** 上这是对的
+   > （那个 boolean 一路透传到 `CullTask.useOcclusionCulling`），但 **0.8.15 不一样**：
+   >
+   > ```java
+   > // Sodium 0.8.15 RenderSectionManager
+   > boolean shouldUseOcclusionCulling(Camera camera, boolean flag) {
+   >     if (flag && level.getBlockState(camera.blockPosition()).isSolidRender())
+   >         return false;
+   >     return Minecraft.getInstance().smartCull;   // 默认 true
+   > }
+   > ```
+   >
+   > 所以置 `false` 只是**跳过「相机在实心方块内就不剔除」那个特例**，
+   > `else` 分支照样返回 `smartCull`（`true`），遮挡剔除根本没关。
+   > 真正的开关是这个方法的**返回值** —— 它被
+   > `createTerrainRenderList` 交给 `OcclusionCuller.findVisible(..., Z, ...)`。
+   > 所以改成注入它的返回值。**换 Sodium 版本时务必重新确认这条链**。
 
 2. **Mixin 只做到「目标能解析」，没做实机验证。**
    `./gradlew build` 的 remapJar 阶段已经确认所有 Mixin 的目标方法/字段在
@@ -127,14 +147,27 @@ accessible method net/minecraft/client/renderer/RenderPipelines register (Lcom/m
    如果发现某个功能没反应，把 `nova.mixins.json` 里的 `defaultRequire` 改成 `1`
    再启动，崩溃日志会直接点名是哪个 Mixin 出问题。
 
-4. **渲染管线用的是自定义 shader**（`assets/nova/shaders/core/fogless_lines.*`）。
-   1.21.11 的 pipeline/shader 加载机制和 26.2 未必完全一致，没实测。
+4. **渲染管线用的是自定义 shader**（`assets/nova/shaders/core/fogless_lines.vsh` / `.fsh`）。
+   v1.3.3 复核结论：**不需要** `CoreShaderRegistrationCallback`。
+   1.21.11 的 `ShaderManager` 是个 `SimplePreparableReloadListener`，`prepare()` 里
+   直接 `resourceManager.listResources("shaders", isShader)` —— **扫全部命名空间**，
+   所以 `assets/nova/shaders/core/fogless_lines.*` 会在资源重载时自动被读进来；
+   `SHADER_PATH` 常量就是 `"shaders"`，和
+   `withVertexShader(Identifier.parse("nova:core/fogless_lines"))` 的约定对得上。
+   另外 `RenderPipelines.register(...)` 的实现只是
+   `PIPELINES_BY_LOCATION.put(pipeline.getLocation(), pipeline)`，没有校验也没有时序要求，
+   放在静态初始化里调用没问题。
+   （`CoreShaderRegistrationCallback` 是旧版 `ShaderInstance` 体系的东西，
+   在这套 pipeline 体系里用不上 —— 之前把它列成「已知差距」是误判。）
+   ⚠️ 画出来的实际效果仍然没有实机验证过。
 
-5. **Fabric API 的 `CoreShaderRegistrationCallback` 没有接。**
-   如果自定义 pipeline 起不来，ESP 类模块（PlayerEsp / ItemEsp / HoleEsp /
-   Trajectories / Waypoints / Breadcrumbs / Search）会画不出来。
+5. **ESP 渲染链路**（`RenderUtils` → `NovaRenderLayers` → `NovaRenderPipelines`）
+   静态上已经接全：7 个渲染模块用到 `RenderUtils`，`RenderUtils` 用
+   `NovaRenderLayers.getLines/getQuads`，后者用 `NovaRenderPipelines` 里的 4 条 pipeline。
 
 6. **还没在真机上跑过。** 上面的「已改完」全部只保证**编译通过 + remap 校验通过**。
+   v1.3.3 做了第二轮逐字节码审计（结论见上），修掉了 3 个静默失效的注入点，
+   但「锚点命中」仍不等于「语义正确」。
 
 ---
 

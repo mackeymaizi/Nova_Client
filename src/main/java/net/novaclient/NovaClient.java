@@ -19,8 +19,8 @@ import net.novaclient.module.ModuleManager;
 public final class NovaClient implements ClientModInitializer
 {
 	public static final String NAME = "Nova Client";
-	public static final String VERSION = "1.3.2";
-	public static final String MC_VERSION = "26.2";
+	public static final String VERSION = "1.3.3";
+	public static final String MC_VERSION = "1.21.11";
 	public static final String MOD_ID = "nova";
 
 	public static Minecraft MC;

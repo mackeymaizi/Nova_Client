@@ -67,10 +67,15 @@ public abstract class BlockRendererMixin
 	/**
 	 * When an opacity above zero is configured, hidden blocks are drawn on the
 	 * translucent layer instead of being removed.
+	 *
+	 * <p>The owner in the anchor is {@code MutableQuadViewImpl}, not
+	 * {@code QuadViewImpl}: {@code getRenderType()} is declared on the parent
+	 * but javac emits the receiver's static type, and Mixin matches the owner
+	 * exactly. Targeting {@code QuadViewImpl} silently never matches.
 	 */
 	@ModifyExpressionValue(method = "processQuad",
 		at = @At(value = "INVOKE",
-			target = "Lnet/caffeinemc/mods/sodium/client/render/model/QuadViewImpl;getRenderType()Lnet/minecraft/client/renderer/chunk/ChunkSectionLayer;"),
+			target = "Lnet/caffeinemc/mods/sodium/client/render/model/MutableQuadViewImpl;getRenderType()Lnet/minecraft/client/renderer/chunk/ChunkSectionLayer;"),
 		require = 0)
 	private ChunkSectionLayer nova_xrayRenderType(ChunkSectionLayer original)
 	{
@@ -81,7 +86,7 @@ public abstract class BlockRendererMixin
 	/** Applies X-Ray's alpha to the quad colour. */
 	@ModifyExpressionValue(method = "bufferQuad",
 		at = @At(value = "INVOKE",
-			target = "Lnet/caffeinemc/mods/sodium/client/render/model/QuadViewImpl;baseColor(I)I"),
+			target = "Lnet/caffeinemc/mods/sodium/client/render/model/MutableQuadViewImpl;baseColor(I)I"),
 		require = 0)
 	private int nova_xrayBaseColor(int original)
 	{

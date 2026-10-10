@@ -10,7 +10,7 @@
   "mixins": [],
   "client": [
     "BlockRendererMixin",
-    "SodiumWorldRendererMixin"
+    "RenderSectionManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 0
