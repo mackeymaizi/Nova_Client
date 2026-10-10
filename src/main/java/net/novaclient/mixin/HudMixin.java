@@ -13,8 +13,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import net.minecraft.client.DeltaTracker;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.Hud;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.novaclient.NovaClient;
@@ -25,13 +25,17 @@ import net.novaclient.module.modules.render.NoOverlayModule;
 import net.novaclient.module.modules.render.NoPumpkinModule;
 import net.novaclient.module.modules.render.NoVignetteModule;
 
-@Mixin(Hud.class)
+/**
+ * On 1.21.11 the HUD is rendered by {@link Gui} - 26.2 split it out into a
+ * separate {@code Hud} class - so the hooks live here instead.
+ */
+@Mixin(Gui.class)
 public class HudMixin
 {
 	@Inject(
-		method = "extractTabList(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V",
+		method = "renderTabList(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/client/DeltaTracker;)V",
 		at = @At("HEAD"))
-	private void nova_onExtractTabList(GuiGraphicsExtractor context,
+	private void nova_onRenderTabList(GuiGraphics context,
 		DeltaTracker deltaTracker, CallbackInfo ci)
 	{
 		if(NovaClient.MC.debugEntries.isOverlayVisible())
@@ -42,10 +46,10 @@ public class HudMixin
 	}
 
 	@Inject(
-		method = "extractTextureOverlay(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/resources/Identifier;F)V",
+		method = "renderTextureOverlay(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/resources/Identifier;F)V",
 		at = @At("HEAD"),
 		cancellable = true)
-	private void nova_onExtractTextureOverlay(GuiGraphicsExtractor context,
+	private void nova_onRenderTextureOverlay(GuiGraphics context,
 		Identifier texture, float opacity, CallbackInfo ci)
 	{
 		if(texture == null || NovaClient.INSTANCE == null)
@@ -62,9 +66,12 @@ public class HudMixin
 			ci.cancel();
 	}
 
-	@Inject(method = "extractVignette", at = @At("HEAD"), cancellable = true)
-	private void nova_onExtractVignette(GuiGraphicsExtractor context,
-		Entity entity, CallbackInfo ci)
+	@Inject(
+		method = "renderVignette(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/world/entity/Entity;)V",
+		at = @At("HEAD"),
+		cancellable = true)
+	private void nova_onRenderVignette(GuiGraphics context, Entity entity,
+		CallbackInfo ci)
 	{
 		if(NovaClient.INSTANCE == null)
 			return;

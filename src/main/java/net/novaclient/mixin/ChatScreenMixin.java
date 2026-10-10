@@ -58,7 +58,7 @@ public abstract class ChatScreenMixin extends Screen
 		if(CommandManager.isCommand(message))
 		{
 			if(addToHistory)
-				minecraft.gui.hud.getChat().addRecentChat(message);
+				minecraft.gui.getChat().addRecentChat(message);
 
 			CommandManager.onChatInput(message);
 			ci.cancel();
@@ -76,7 +76,7 @@ public abstract class ChatScreenMixin extends Screen
 
 		String newMessage = event.message();
 		if(addToHistory)
-			minecraft.gui.hud.getChat().addRecentChat(newMessage);
+			minecraft.gui.getChat().addRecentChat(newMessage);
 
 		if(cancelled || minecraft.player == null)
 			return;

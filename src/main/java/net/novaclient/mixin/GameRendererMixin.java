@@ -13,13 +13,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 
+import net.minecraft.client.OptionInstance;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.entity.LivingEntity;
 import net.novaclient.NovaClient;
 import net.novaclient.event.EventBus;
@@ -35,44 +34,51 @@ public abstract class GameRendererMixin implements AutoCloseable
 	/** Prevents view bobbing when AntiWobble is enabled. */
 	@WrapOperation(method = "renderLevel(Lnet/minecraft/client/DeltaTracker;)V",
 		at = @At(value = "INVOKE",
-			target = "Lnet/minecraft/client/renderer/GameRenderer;bobView(Lnet/minecraft/client/renderer/state/level/CameraRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;)V",
+			target = "Lnet/minecraft/client/renderer/GameRenderer;bobView(Lcom/mojang/blaze3d/vertex/PoseStack;F)V",
 			ordinal = 0))
-	private void nova_onBobView(GameRenderer instance,
-		CameraRenderState cameraState, PoseStack poseStack,
-		Operation<Void> original)
+	private void nova_onBobView(GameRenderer instance, PoseStack poseStack,
+		float partialTick, Operation<Void> original)
 	{
 		CameraBobEvent event = CameraBobEvent.INSTANCE;
 		event.setCancelled(false);
 		EventBus.post(event);
 
 		if(!event.isCancelled())
-			original.call(instance, cameraState, poseStack);
+			original.call(instance, poseStack, partialTick);
 	}
 
 	/**
 	 * Disables nausea and portal wobble when using AntiWobble, without the
 	 * green tint that the vanilla setting creates.
+	 *
+	 * <p>1.21.11 reads {@code options.screenEffectScale} through an
+	 * {@link OptionInstance}, so we wrap the read and substitute 0 when the
+	 * module is on.
 	 */
-	@ModifyExpressionValue(
-		method = "renderLevel(Lnet/minecraft/client/DeltaTracker;)V",
-		at = @At(value = "FIELD",
-			target = "Lnet/minecraft/client/renderer/state/OptionsRenderState;screenEffectScale:F"))
-	private float nova_onScreenEffectScale(float original)
+	@WrapOperation(method = "renderLevel(Lnet/minecraft/client/DeltaTracker;)V",
+		at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/client/OptionInstance;get()Ljava/lang/Object;"))
+	private Object nova_onScreenEffectScale(OptionInstance<?> instance,
+		Operation<Object> original)
 	{
-		if(NovaClient.INSTANCE == null)
-			return original;
+		Object value = original.call(instance);
 
-		return ModuleManager.get(AntiWobbleModule.class).isEnabled() ? 0
-			: original;
+		if(NovaClient.INSTANCE == null)
+			return value;
+
+		if(ModuleManager.get(AntiWobbleModule.class).isEnabled()
+			&& instance == NovaClient.MC.options.screenEffectScale())
+			return 0.0D;
+
+		return value;
 	}
 
 	/** Makes NoHurtcam work. */
-	@Inject(
-		method = "bobHurt(Lnet/minecraft/client/renderer/state/level/CameraRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;)V",
+	@Inject(method = "bobHurt(Lcom/mojang/blaze3d/vertex/PoseStack;F)V",
 		at = @At("HEAD"),
 		cancellable = true)
-	private void nova_onBobHurt(CameraRenderState cameraState,
-		PoseStack poseStack, CallbackInfo ci)
+	private void nova_onBobHurt(PoseStack poseStack, float partialTick,
+		CallbackInfo ci)
 	{
 		if(NovaClient.INSTANCE == null)
 			return;
@@ -82,7 +88,7 @@ public abstract class GameRendererMixin implements AutoCloseable
 	}
 
 	@Inject(
-		method = "nightVisionScale(Lnet/minecraft/world/entity/LivingEntity;F)F",
+		method = "getNightVisionScale(Lnet/minecraft/world/entity/LivingEntity;F)F",
 		at = @At("HEAD"),
 		cancellable = true)
 	private static void nova_onNightVisionScale(LivingEntity entity,

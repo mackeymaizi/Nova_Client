@@ -1,5 +1,8 @@
 plugins {
-	id "net.fabricmc.fabric-loom" version "${loom_version}"
+	// Minecraft 1.21.11 is still obfuscated, so it needs the classic
+	// "remap" flavour of Loom (mappings + a remapJar step). The newer
+	// "net.fabricmc.fabric-loom" plugin is for the unobfuscated era (26.2+).
+	id "net.fabricmc.fabric-loom-remap" version "${loom_version}"
 }
 
 version = project.mod_version
@@ -9,32 +12,18 @@ base {
 	archivesName = project.archives_base_name
 }
 
-repositories {
-	exclusiveContent {
-		forRepository {
-			maven {
-				name = "Modrinth"
-				url = "https://api.modrinth.com/maven"
-			}
-		}
-		filter {
-			includeGroup "maven.modrinth"
-		}
-	}
-}
-
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Official Mojang mappings keep the class and method names identical to
+	// the 26.2 branch, which keeps this port as small as possible.
+	mappings loom.officialMojangMappings()
+
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// Minecraft still references javax.annotation (JSR305) in places.
 	implementation "com.google.code.findbugs:jsr305:3.0.2"
-
-	// Sodium - compile-only, used by the optional X-Ray integration.
-	// Not bundled: the Sodium mixins are only applied when Sodium is loaded,
-	// and Sodium for MC 26.2 ships unobfuscated so no remapping is needed.
-	compileOnly files("libs/sodium-fabric-0.9.2+mc26.2.jar")
 }
 
 loom {
@@ -48,13 +37,14 @@ if(novaBuildDir.isPresent() && !novaBuildDir.get().isBlank())
 	layout.buildDirectory = file(novaBuildDir.get())
 
 tasks.withType(JavaCompile).configureEach {
-	// Minecraft 26.1 upwards requires Java 25.
-	it.options.release = 25
+	// Minecraft 1.21.11 runs on Java 21.
+	it.options.release = 21
 	it.options.encoding = "UTF-8"
+	it.options.compilerArgs += ["-Xmaxerrs", "3000"]
 }
 
 java {
 	withSourcesJar()
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
 }

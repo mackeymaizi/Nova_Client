@@ -26,7 +26,7 @@ public enum RenderUtils
 
 	public static Vec3 getCameraPos()
 	{
-		Camera camera = NovaClient.MC.gameRenderer.mainCamera();
+		Camera camera = NovaClient.MC.gameRenderer.getMainCamera();
 		if(camera == null)
 			return Vec3.ZERO;
 

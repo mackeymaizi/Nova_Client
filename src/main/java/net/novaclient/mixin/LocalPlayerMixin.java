@@ -96,8 +96,8 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer
 		if(!ModuleManager.get(PortalGuiModule.class).isEnabled())
 			return;
 
-		nova_tempScreen = minecraft.gui.screen();
-		minecraft.gui.setScreen(null);
+		nova_tempScreen = minecraft.screen;
+		minecraft.setScreen(null);
 	}
 
 	/** Restores the screen once handlePortalTransitionEffect() is done. */
@@ -112,7 +112,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer
 		if(nova_tempScreen == null)
 			return;
 
-		minecraft.gui.setScreen(nova_tempScreen);
+		minecraft.setScreen(nova_tempScreen);
 		nova_tempScreen = null;
 	}
 

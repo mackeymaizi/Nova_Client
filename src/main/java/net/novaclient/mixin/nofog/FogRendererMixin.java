@@ -32,14 +32,14 @@ public class FogRendererMixin
 	 * if NoFog is enabled.
 	 */
 	@Inject(
-		method = "setupFog(Lnet/minecraft/client/Camera;ILnet/minecraft/client/DeltaTracker;FLnet/minecraft/client/multiplayer/ClientLevel;)Lnet/minecraft/client/renderer/fog/FogData;",
+		method = "setupFog(Lnet/minecraft/client/Camera;ILnet/minecraft/client/DeltaTracker;FLnet/minecraft/client/multiplayer/ClientLevel;)Lorg/joml/Vector4f;",
 		at = @At(value = "FIELD",
 			target = "Lnet/minecraft/client/renderer/fog/FogData;renderDistanceEnd:F",
 			opcode = Opcodes.PUTFIELD,
 			shift = At.Shift.AFTER))
 	private void nova_modifyFogData(Camera camera, int renderDistanceInChunks,
 		DeltaTracker deltaTracker, float darkenWorldAmount, ClientLevel level,
-		CallbackInfoReturnable<FogData> cir, @Local FogData fog)
+		CallbackInfoReturnable<org.joml.Vector4f> cir, @Local FogData fog)
 	{
 		if(NovaClient.INSTANCE == null)
 			return;

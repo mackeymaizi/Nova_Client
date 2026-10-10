@@ -30,7 +30,7 @@ public abstract class EntityRendererMixin<T extends Entity, S extends EntityRend
 {
 	/** Disables the nametag distance limit if configured in NameTags. */
 	@WrapOperation(
-		method = "extractNameTags(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;FDD)V",
+		method = "extractRenderState(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;F)V",
 		at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/renderer/entity/EntityRenderDispatcher;distanceToSqr(Lnet/minecraft/world/entity/Entity;)D"))
 	private double nova_fakeDistanceToCameraSq(EntityRenderDispatcher dispatcher,
@@ -51,11 +51,10 @@ public abstract class EntityRendererMixin<T extends Entity, S extends EntityRend
 	 * might rely on it.
 	 */
 	@Inject(
-		method = "extractNameTags(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;FDD)V",
+		method = "extractRenderState(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;F)V",
 		at = @At("TAIL"))
 	private void nova_restoreDistanceToCameraSq(T entity, S state,
-		float tickDelta, double nameplateDistance, double belowNameDistance,
-		CallbackInfo ci,
+		float tickDelta, CallbackInfo ci,
 		@Share("nova_actualDistanceSq") LocalDoubleRef actualDistanceSq)
 	{
 		state.distanceToCameraSq = actualDistanceSq.get();

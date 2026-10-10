@@ -99,7 +99,7 @@ public final class AutoTotemModule extends Module
 			return;
 		}
 
-		if(pauseInScreens.isChecked() && mc.gui.screen() != null)
+		if(pauseInScreens.isChecked() && mc.screen != null)
 			return;
 
 		if(ticks < delay.get())

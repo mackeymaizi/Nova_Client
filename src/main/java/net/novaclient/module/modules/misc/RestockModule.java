@@ -67,7 +67,7 @@ public final class RestockModule extends Module
 	private void onUpdate()
 	{
 		// Don't mess with the inventory while it's open.
-		if(NovaClient.MC.gui.screen() instanceof AbstractContainerScreen)
+		if(NovaClient.MC.screen instanceof AbstractContainerScreen)
 			return;
 
 		var inv = NovaClient.MC.player.getInventory();

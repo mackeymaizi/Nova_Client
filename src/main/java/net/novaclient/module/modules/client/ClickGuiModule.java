@@ -82,10 +82,10 @@ public final class ClickGuiModule extends Module
 		// The screen handles the "open" state, so we just push it and
 		// immediately toggle back off - the module acts as a trigger.
 		NovaClient.MC.execute(() -> {
-			if(NovaClient.MC.gui.screen() instanceof ClickGuiScreen)
-				NovaClient.MC.gui.setScreen(null);
+			if(NovaClient.MC.screen instanceof ClickGuiScreen)
+				NovaClient.MC.setScreen(null);
 			else
-				NovaClient.MC.gui.setScreen(new ClickGuiScreen());
+				NovaClient.MC.setScreen(new ClickGuiScreen());
 		});
 
 		setEnabled(false);

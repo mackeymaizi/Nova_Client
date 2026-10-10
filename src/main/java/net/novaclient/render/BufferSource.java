@@ -1,69 +1,29 @@
 package net.novaclient.render;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
-import net.minecraft.client.renderer.StagedVertexBuffer;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.rendertype.RenderType;
 
 /**
- * Simple wrapper around {@link StagedVertexBuffer}, replacing the
- * MultiBufferSource that was removed in 26.2.
+ * Thin wrapper around {@link MultiBufferSource.BufferSource} that lets Nova
+ * queue several batches and flush them in one go.
  */
 public final class BufferSource
 {
-	private final StagedVertexBuffer stagedBuffer =
-		new StagedVertexBuffer(() -> "NovaBufferSource",
-			RenderType.BIG_BUFFER_SIZE);
-	private final List<StagedVertexBuffer.Draw> draws = new ArrayList<>();
-	private final List<RenderType> drawTypes = new ArrayList<>();
+	private final MultiBufferSource.BufferSource delegate =
+		MultiBufferSource
+			.immediate(new ByteBufferBuilder(RenderType.BIG_BUFFER_SIZE));
 
 	public VertexConsumer getBuffer(RenderType renderType)
 	{
-		if(!drawTypes.isEmpty() && drawTypes.getLast() == renderType
-			&& renderType.canConsolidateConsecutiveGeometry())
-			return stagedBuffer.getVertexBuilder(draws.getLast());
-
-		StagedVertexBuffer.Draw draw =
-			stagedBuffer.appendDraw(renderType.format(),
-				renderType.primitiveTopology(), renderType.sortOnUpload()
-					? RenderSystem.getProjectionType().vertexSorting() : null);
-
-		draws.add(draw);
-		drawTypes.add(renderType);
-		return stagedBuffer.getVertexBuilder(draw);
+		return delegate.getBuffer(renderType);
 	}
 
+	/** Uploads and draws everything that was queued. */
 	public void uploadAndDraw()
 	{
-		try
-		{
-			if(draws.isEmpty())
-				return;
-
-			stagedBuffer.upload();
-
-			for(int i = 0; i < draws.size(); i++)
-				draw(drawTypes.get(i), draws.get(i));
-
-			stagedBuffer.endDraw();
-
-		}finally
-		{
-			draws.clear();
-			drawTypes.clear();
-			stagedBuffer.close();
-		}
-	}
-
-	private void draw(RenderType type, StagedVertexBuffer.Draw draw)
-	{
-		StagedVertexBuffer.ExecuteInfo info = stagedBuffer.getExecuteInfo(draw);
-
-		if(info != null)
-			type.prepare().drawFromBuffer(info);
+		delegate.endBatch();
 	}
 }

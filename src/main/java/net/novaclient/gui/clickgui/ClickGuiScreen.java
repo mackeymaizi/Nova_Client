@@ -10,7 +10,7 @@ package net.novaclient.gui.clickgui;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -64,8 +64,8 @@ public final class ClickGuiScreen extends Screen
 	}
 
 	@Override
-	public void extractRenderState(GuiGraphicsExtractor context, int mouseX,
-		int mouseY, float delta)
+	public void render(GuiGraphics context, int mouseX, int mouseY,
+		float delta)
 	{
 		// Dim the world behind the GUI.
 		context.fill(0, 0, width, height, 0xB0101014);
@@ -149,7 +149,7 @@ public final class ClickGuiScreen extends Screen
 	public void onClose()
 	{
 		if(minecraft != null)
-			minecraft.gui.setScreen(null);
+			minecraft.setScreen(null);
 	}
 
 	@Override
@@ -239,7 +239,7 @@ public final class ClickGuiScreen extends Screen
 				settingRows.add(new SettingRow(setting));
 		}
 
-		private void render(GuiGraphicsExtractor context, int mouseX, int mouseY,
+		private void render(GuiGraphics context, int mouseX, int mouseY,
 			float delta, net.minecraft.client.gui.Font font)
 		{
 			ClickGuiModule config = config();
@@ -249,9 +249,9 @@ public final class ClickGuiScreen extends Screen
 			// Header with the Nova gradient.
 			context.fillGradient(x, y, x + width, y + headerHeight,
 				GuiTheme.PRIMARY_TOP, GuiTheme.PRIMARY_BOTTOM);
-			context.text(font, category.displayName(), x + 5,
+			context.drawString(font, category.displayName(), x + 5,
 				y + (headerHeight - 8) / 2 + 1, 0xFFFFFFFF);
-			context.text(font, expanded ? "-" : "+", x + width - 10,
+			context.drawString(font, expanded ? "-" : "+", x + width - 10,
 				y + (headerHeight - 8) / 2 + 1, 0xFFFFFFFF);
 
 			if(!expanded)
@@ -288,7 +288,7 @@ public final class ClickGuiScreen extends Screen
 				if(info != null && !info.isEmpty())
 					label = label + " " + info;
 
-				context.text(font, label, x + 6, rowY + 3, textColor);
+				context.drawString(font, label, x + 6, rowY + 3, textColor);
 
 				if(module == expandedModule)
 				{
@@ -307,7 +307,8 @@ public final class ClickGuiScreen extends Screen
 			}
 
 			// Border.
-			context.outline(x, y, x + width, bodyBottom, GuiTheme.PANEL_BORDER);
+			context.renderOutline(x, y, x + width, bodyBottom,
+				GuiTheme.PANEL_BORDER);
 		}
 
 		private boolean mouseClicked(double mouseX, double mouseY, int button)
@@ -395,7 +396,7 @@ public final class ClickGuiScreen extends Screen
 			this.setting = setting;
 		}
 
-		private void render(GuiGraphicsExtractor context,
+		private void render(GuiGraphics context,
 			net.minecraft.client.gui.Font font, int x, int y, int width,
 			int mouseX, int mouseY)
 		{
@@ -409,9 +410,10 @@ public final class ClickGuiScreen extends Screen
 			if(setting instanceof BoolSetting bool)
 				value = bool.isChecked() ? "on" : "off";
 
-			context.text(font, setting.name(), x, y + 3, GuiTheme.TEXT_DIM);
-			context.text(font, value, x + width - font.width(value) - 2, y + 3,
-				GuiTheme.TEXT);
+			context.drawString(font, setting.name(), x, y + 3,
+				GuiTheme.TEXT_DIM);
+			context.drawString(font, value, x + width - font.width(value) - 2,
+				y + 3, GuiTheme.TEXT);
 		}
 
 		private boolean mouseClicked(double mouseX, double mouseY, int x, int y,

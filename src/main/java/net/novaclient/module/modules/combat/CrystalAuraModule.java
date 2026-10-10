@@ -12,7 +12,7 @@ import java.util.List;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
+import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
@@ -323,8 +323,8 @@ public final class CrystalAuraModule extends Module
 					crystal.position()));
 		}
 
-		mc.player.connection
-			.send(new ServerboundAttackPacket(crystal.getId()));
+		mc.player.connection.send(ServerboundInteractPacket
+			.createAttackPacket(crystal, mc.player.isShiftKeyDown()));
 		mc.player.swing(InteractionHand.MAIN_HAND);
 	}
 

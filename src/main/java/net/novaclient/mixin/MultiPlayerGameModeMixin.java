@@ -27,7 +27,7 @@ import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.novaclient.event.EventBus;
@@ -64,28 +64,26 @@ public abstract class MultiPlayerGameModeMixin implements IMultiPlayerGameMode
 	@Override
 	public void nova_windowClick_PICKUP(int slot)
 	{
-		handleContainerInput(0, slot, 0, ContainerInput.PICKUP,
-			minecraft.player);
+		handleInventoryMouseClick(0, slot, 0, ClickType.PICKUP, minecraft.player);
 	}
 
 	@Override
 	public void nova_windowClick_QUICK_MOVE(int slot)
 	{
-		handleContainerInput(0, slot, 0, ContainerInput.QUICK_MOVE,
+		handleInventoryMouseClick(0, slot, 0, ClickType.QUICK_MOVE,
 			minecraft.player);
 	}
 
 	@Override
 	public void nova_windowClick_THROW(int slot)
 	{
-		handleContainerInput(0, slot, 1, ContainerInput.THROW,
-			minecraft.player);
+		handleInventoryMouseClick(0, slot, 1, ClickType.THROW, minecraft.player);
 	}
 
 	@Override
 	public void nova_windowClick_SWAP(int from, int to)
 	{
-		handleContainerInput(0, from, to, ContainerInput.SWAP,
+		handleInventoryMouseClick(0, from, to, ClickType.SWAP,
 			minecraft.player);
 	}
 
@@ -135,6 +133,6 @@ public abstract class MultiPlayerGameModeMixin implements IMultiPlayerGameMode
 		InteractionHand hand);
 
 	@Shadow
-	public abstract void handleContainerInput(int syncId, int slotId,
-		int button, ContainerInput actionType, Player player);
+	public abstract void handleInventoryMouseClick(int syncId, int slotId,
+		int button, ClickType actionType, Player player);
 }

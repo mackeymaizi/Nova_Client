@@ -7,7 +7,7 @@
  */
 package net.novaclient.module.modules.combat;
 
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
+import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.world.entity.Entity;
@@ -22,6 +22,7 @@ import net.novaclient.module.ModuleManager;
 import net.novaclient.setting.BoolSetting;
 import net.novaclient.setting.DoubleSetting;
 import net.novaclient.setting.EnumSetting;
+import net.novaclient.util.PacketUtils;
 
 /** Ported from Meteor's Criticals. */
 public final class CriticalsModule extends Module
@@ -42,7 +43,7 @@ public final class CriticalsModule extends Module
 			+ " damage.",
 		0, 0, 100, 0.1);
 
-	private ServerboundAttackPacket attackPacket;
+	private ServerboundInteractPacket attackPacket;
 	private ServerboundSwingPacket swingPacket;
 	private boolean sendPackets;
 	private int sendTimer;
@@ -79,10 +80,9 @@ public final class CriticalsModule extends Module
 	{
 		var mc = NovaClient.MC;
 
-		if(event.packet() instanceof ServerboundAttackPacket attack)
+		if(event.packet() instanceof ServerboundInteractPacket packet
+			&& PacketUtils.isAttack(packet))
 		{
-			int entityId = attack.entityId();
-
 			if(mace.isChecked()
 				&& mc.player.getMainHandItem().getItem() instanceof MaceItem)
 			{
@@ -98,7 +98,7 @@ public final class CriticalsModule extends Module
 			if(skipCrit())
 				return;
 
-			Entity entity = mc.level.getEntity(entityId);
+			Entity entity = mc.crosshairPickEntity;
 			KillAuraModule killAura =
 				ModuleManager.get(KillAuraModule.class);
 
@@ -126,7 +126,7 @@ public final class CriticalsModule extends Module
 					if(!sendPackets)
 					{
 						sendPackets = true;
-						attackPacket = attack;
+						attackPacket = packet;
 
 						if(mode.get() == Mode.MiniJump)
 							mc.player.setDeltaMovement(mc.player.getDeltaMovement().x,
@@ -190,7 +190,7 @@ public final class CriticalsModule extends Module
 		}
 	}
 
-	public void queueJumpCrit(ServerboundAttackPacket packet)
+	public void queueJumpCrit(ServerboundInteractPacket packet)
 	{
 		sendPackets = true;
 		attackPacket = packet;

@@ -13,8 +13,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import net.minecraft.client.GuiMessageTag;
 import net.minecraft.client.gui.components.ChatComponent;
-import net.minecraft.client.multiplayer.chat.GuiMessageTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.novaclient.NovaClient;
@@ -29,21 +29,23 @@ import net.novaclient.module.modules.render.NameProtectModule;
 @Mixin(ChatComponent.class)
 public abstract class ChatComponentMixin
 {
-	@ModifyVariable(method = "addServerSystemMessage",
+	@ModifyVariable(method = "addMessage(Lnet/minecraft/network/chat/Component;)V",
 		at = @At("HEAD"), argsOnly = true)
 	private Component nova_protectServerSystem(Component message)
 	{
 		return protect(message);
 	}
 
-	@ModifyVariable(method = "addPlayerMessage",
+	@ModifyVariable(
+		method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/GuiMessageTag;)V",
 		at = @At("HEAD"), argsOnly = true)
 	private Component nova_protectPlayerMessage(Component message)
 	{
 		return protect(message);
 	}
 
-	@Inject(method = "addServerSystemMessage", at = @At("HEAD"),
+	@Inject(method = "addMessage(Lnet/minecraft/network/chat/Component;)V",
+		at = @At("HEAD"),
 		cancellable = true)
 	private void nova_spamCheckServer(Component message, CallbackInfo ci)
 	{
@@ -51,7 +53,9 @@ public abstract class ChatComponentMixin
 			ci.cancel();
 	}
 
-	@Inject(method = "addPlayerMessage", at = @At("HEAD"),
+	@Inject(
+		method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/GuiMessageTag;)V",
+		at = @At("HEAD"),
 		cancellable = true)
 	private void nova_spamCheckPlayer(Component message,
 		net.minecraft.network.chat.MessageSignature signature,

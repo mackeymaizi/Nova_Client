@@ -60,7 +60,7 @@ public final class InvWalkModule extends Module
 
 	private void onUpdate()
 	{
-		Screen screen = NovaClient.MC.gui.screen();
+		Screen screen = NovaClient.MC.screen;
 		if(screen == null || !isAllowedScreen(screen))
 			return;
 

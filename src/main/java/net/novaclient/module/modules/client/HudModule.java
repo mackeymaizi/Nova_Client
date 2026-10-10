@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.novaclient.NovaClient;
 import net.novaclient.event.events.Render2DEvent;
 import net.novaclient.gui.GuiTheme;
@@ -90,7 +90,7 @@ public final class HudModule extends Module
 		else
 			modules.sort(Comparator.comparing(Module::displayName));
 
-		GuiGraphicsExtractor context = event.context();
+		GuiGraphics context = event.context();
 		var font = NovaClient.MC.font;
 
 		int right = context.guiWidth() - PADDING;
@@ -109,7 +109,7 @@ public final class HudModule extends Module
 			int color = showCategoryColor.isChecked()
 				? categoryColor(module.category()) : 0xFFFFFFFF;
 
-			context.text(font, text, x, y, color);
+			context.drawString(font, text, x, y, color);
 			y += LINE_HEIGHT;
 		}
 	}

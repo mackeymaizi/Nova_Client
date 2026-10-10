@@ -8,7 +8,7 @@
 package net.novaclient.module.modules.combat;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
+import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
@@ -38,7 +38,8 @@ public final class MaceKillModule extends Module
 
 	private void onSendPacket(PacketSendEvent event)
 	{
-		if(!(event.packet() instanceof ServerboundAttackPacket))
+		if(!(event.packet() instanceof ServerboundInteractPacket packet)
+			|| !net.novaclient.util.PacketUtils.isAttack(packet))
 			return;
 
 		var mc = NovaClient.MC;

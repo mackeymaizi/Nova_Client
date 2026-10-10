@@ -1,55 +1,58 @@
 package net.novaclient.render;
 
-import java.util.Optional;
-
-import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderPipeline.Snippet;
+import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormat;
 
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
 /**
  * Render pipelines used by Nova Client to draw ESP boxes, tracers and other
- * world overlays. Ported from the MC 26.2 rendering API.
+ * world overlays.
+ *
+ * <p>MC 1.21.11 already has the pipeline/snippet based renderer that the 26.2
+ * branch uses, but the builder API is slightly different: depth state is set
+ * with {@code withDepthTestFunction} instead of {@code withDepthStencilState},
+ * and the vertex format carries the primitive topology.
  */
 public enum NovaRenderPipelines
 {
 	;
 
-	/** Similar to the RENDERTYPE_LINES snippet, but without fog. */
+	/** Similar to the LINES snippet, but without fog. */
 	public static final Snippet FOGLESS_LINES_SNIPPET = RenderPipeline
 		.builder(RenderPipelines.LINES_SNIPPET)
 		.withVertexShader(Identifier.parse("nova:core/fogless_lines"))
 		.withFragmentShader(Identifier.parse("nova:core/fogless_lines"))
-		.withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+		.withBlend(BlendFunction.TRANSLUCENT)
 		.withCull(false)
-		.withVertexBinding(0,
-			DefaultVertexFormat.POSITION_COLOR_NORMAL_LINE_WIDTH)
-		.withPrimitiveTopology(PrimitiveTopology.LINES).buildSnippet();
+		.withVertexFormat(DefaultVertexFormat.POSITION_COLOR_NORMAL_LINE_WIDTH,
+			VertexFormat.Mode.LINES)
+		.buildSnippet();
 
 	public static final RenderPipeline DEPTH_TEST_LINES =
 		RenderPipelines.register(RenderPipeline.builder(FOGLESS_LINES_SNIPPET)
 			.withLocation(Identifier.parse("nova:pipeline/nova_lines"))
-			.withDepthStencilState(DepthStencilState.DEFAULT).build());
+			.withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST).build());
 
 	public static final RenderPipeline ESP_LINES = RenderPipelines
 		.register(RenderPipeline.builder(FOGLESS_LINES_SNIPPET)
 			.withLocation(Identifier.parse("nova:pipeline/nova_esp_lines"))
-			.withDepthStencilState(Optional.empty()).build());
+			.withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST).build());
 
 	public static final RenderPipeline QUADS = RenderPipelines
 		.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 			.withLocation(Identifier.parse("nova:pipeline/nova_quads"))
-			.withDepthStencilState(DepthStencilState.DEFAULT).withCull(true)
-			.build());
+			.withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+			.withCull(true).build());
 
 	public static final RenderPipeline ESP_QUADS = RenderPipelines
 		.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 			.withLocation(Identifier.parse("nova:pipeline/nova_esp_quads"))
-			.withDepthStencilState(Optional.empty()).withCull(true).build());
+			.withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+			.withCull(true).build());
 }

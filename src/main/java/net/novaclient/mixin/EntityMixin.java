@@ -35,7 +35,8 @@ public abstract class EntityMixin
 	 * Prevents fluid currents from pushing the local player while
 	 * AntiWaterPush is enabled.
 	 */
-	@WrapOperation(method = "updateFluidInteraction()Z",
+	@WrapOperation(
+		method = "updateFluidHeightAndDoFluidPushing(Lnet/minecraft/tags/TagKey;D)Z",
 		at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/world/entity/Entity;isPushedByFluid()Z",
 			ordinal = 0))

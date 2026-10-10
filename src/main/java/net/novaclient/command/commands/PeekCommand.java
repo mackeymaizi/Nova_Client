@@ -68,7 +68,7 @@ public final class PeekCommand extends Command
 		if(component != null)
 		{
 			int i = 0;
-			for(ItemStack item : component.nonEmptyItemCopyStream().toList())
+			for(ItemStack item : component.nonEmptyItems())
 			{
 				if(i >= 27)
 					break;

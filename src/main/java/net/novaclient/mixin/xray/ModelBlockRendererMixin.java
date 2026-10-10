@@ -7,16 +7,20 @@
  */
 package net.novaclient.mixin.xray;
 
+import java.util.List;
+
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.client.renderer.block.BlockAndTintGetter;
-import net.minecraft.client.renderer.block.BlockQuadOutput;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.block.state.BlockState;
 import net.novaclient.NovaClient;
 import net.novaclient.module.ModuleManager;
@@ -25,14 +29,18 @@ import net.novaclient.module.modules.render.XRayModule;
 /**
  * Hides every block that is not on X-Ray's whitelist by cancelling its
  * tessellation.
+ *
+ * <p>Note: 1.21.11's {@code tesselateBlock} takes the block model parts instead
+ * of a {@code BlockStateModel}.
  */
 @Mixin(ModelBlockRenderer.class)
 public abstract class ModelBlockRendererMixin
 {
 	@Inject(method = "tesselateBlock", at = @At("HEAD"), cancellable = true)
-	private void nova_xrayTesselate(BlockQuadOutput output, float x, float y,
-		float z, BlockAndTintGetter level, BlockPos pos, BlockState state,
-		BlockStateModel model, long seed, CallbackInfo ci)
+	private void nova_xrayTesselate(BlockAndTintGetter level,
+		List<BlockModelPart> parts, BlockState state, BlockPos pos,
+		PoseStack poseStack, VertexConsumer consumer, boolean checkSides,
+		int seed, CallbackInfo ci)
 	{
 		if(NovaClient.INSTANCE == null)
 			return;

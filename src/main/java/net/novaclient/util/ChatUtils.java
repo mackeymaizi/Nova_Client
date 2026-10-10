@@ -17,8 +17,8 @@ public enum ChatUtils
 		if(NovaClient.MC.gui == null)
 			return;
 
-		NovaClient.MC.gui.hud.getChat()
-			.addClientSystemMessage(Component.literal(message));
+		NovaClient.MC.gui.getChat()
+			.addMessage(Component.literal(message));
 	}
 
 	public static void nova(String message)

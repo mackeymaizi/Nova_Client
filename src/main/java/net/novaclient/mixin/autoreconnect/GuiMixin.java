@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.client.gui.Gui;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.DisconnectedScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.novaclient.NovaClient;
@@ -20,10 +20,11 @@ import net.novaclient.module.ModuleManager;
 import net.novaclient.module.modules.misc.AutoReconnectModule;
 
 /** Starts the AutoReconnect countdown when a disconnect screen appears. */
-@Mixin(Gui.class)
+@Mixin(Minecraft.class)
 public abstract class GuiMixin
 {
-	@Inject(method = "setScreen", at = @At("HEAD"))
+	@Inject(method = "setScreen(Lnet/minecraft/client/gui/screens/Screen;)V",
+		at = @At("HEAD"))
 	private void nova_onSetScreen(Screen screen, CallbackInfo ci)
 	{
 		if(NovaClient.INSTANCE == null

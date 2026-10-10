@@ -31,7 +31,7 @@ public enum ContainerUtils
 		ChestMenu menu = ChestMenu.threeRows(0,
 			NovaClient.MC.player.getInventory(), container);
 
-		NovaClient.MC.gui.setScreen(
+		NovaClient.MC.setScreen(
 			new net.minecraft.client.gui.screens.inventory.ContainerScreen(menu,
 				NovaClient.MC.player.getInventory(),
 				Component.literal(title)));

@@ -132,8 +132,8 @@ public final class XRayModule extends Module
 	 */
 	private void refreshChunks()
 	{
-		if(net.novaclient.NovaClient.MC.levelExtractor != null)
-			net.novaclient.NovaClient.MC.levelExtractor.allChanged();
+		if(net.novaclient.NovaClient.MC.levelRenderer != null)
+			net.novaclient.NovaClient.MC.levelRenderer.allChanged();
 
 		SodiumCompat.reloadChunks();
 	}

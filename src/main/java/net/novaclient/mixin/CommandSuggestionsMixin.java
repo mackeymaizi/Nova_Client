@@ -51,9 +51,7 @@ public abstract class CommandSuggestionsMixin
 	private CompletableFuture<Suggestions> pendingSuggestions;
 
 	@Shadow
-	protected abstract void updateUsageInfo(
-		ParseResults<ClientSuggestionProvider> currentParse,
-		Suggestions suggestions);
+	protected abstract void updateUsageInfo();
 
 	@Inject(method = "updateCommandInfo", at = @At(value = "INVOKE",
 		target = "Lcom/mojang/brigadier/StringReader;canRead()Z", remap = false),
@@ -83,7 +81,7 @@ public abstract class CommandSuggestionsMixin
 				.getCompletionSuggestions(currentParse, cursor);
 			pendingSuggestions.thenAccept(result -> {
 				if(pendingSuggestions.isDone())
-					updateUsageInfo(currentParse, result);
+					updateUsageInfo();
 			});
 		}
 
