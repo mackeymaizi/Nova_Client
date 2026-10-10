@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -48,7 +49,7 @@ public abstract class MultiPlayerGameModeMixin implements IMultiPlayerGameMode
 			target = "Lnet/minecraft/client/player/LocalPlayer;getId()I",
 			ordinal = 0))
 	private void nova_onContinueDestroyBlock(BlockPos pos, Direction direction,
-		CallbackInfo ci)
+		CallbackInfoReturnable<Boolean> cir)
 	{
 		EventBus.post(new BlockBreakingProgressEvent(pos));
 	}
