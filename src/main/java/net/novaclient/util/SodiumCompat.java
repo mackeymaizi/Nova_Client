@@ -7,26 +7,46 @@
  */
 package net.novaclient.util;
 
+import net.novaclient.NovaClient;
+import net.novaclient.NovaMixinPlugin;
+
 /**
- * Placeholder for the Sodium bridge used by the 26.2 branch.
+ * Bridges to Sodium without hard-linking it.
  *
- * <p>Minecraft 1.21.11 uses a completely different Sodium version (0.6.x, which
- * lives in a different package and has a different chunk renderer), so the
- * Sodium integration is not ported yet. Everything here degrades to a no-op and
- * X-Ray simply uses Minecraft's own chunk renderer.
+ * <p>Every method here is a no-op when Sodium is absent. The Sodium types are
+ * only touched inside the guarded calls, and the whole body is wrapped in a
+ * {@code Throwable} guard so a class-loading failure can never crash the game.
+ *
+ * <p>Targets Sodium 0.8.15 for Minecraft 1.21.11.
  */
 public final class SodiumCompat
 {
 	private SodiumCompat()
 	{}
 
-	/** Always false on 1.21.11 - the Sodium bridge is not ported yet. */
+	/** True when Sodium is loaded. */
 	public static boolean isPresent()
 	{
-		return false;
+		return NovaMixinPlugin.isSodiumPresent();
 	}
 
-	/** No-op. The vanilla chunk re-mesh is done by the caller. */
+	/**
+	 * Asks Sodium to rebuild every chunk mesh. Used when X-Ray is toggled so
+	 * the change is visible immediately instead of after walking around.
+	 */
 	public static void reloadChunks()
-	{}
+	{
+		if(!isPresent())
+			return;
+
+		try
+		{
+			if(NovaClient.MC.levelRenderer instanceof
+				net.caffeinemc.mods.sodium.client.world.LevelRendererExtension extension)
+				extension.sodium$getWorldRenderer().reload();
+		}catch(Throwable ignored)
+		{
+			// Sodium is present but the API moved - not worth crashing over.
+		}
+	}
 }

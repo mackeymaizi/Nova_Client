@@ -10,7 +10,8 @@
 | Fabric API | `0.141.6+1.21.11` |
 | Fabric Loom | `1.18-SNAPSHOT`（`net.fabricmc.fabric-loom-remap`） |
 | Java | 编译目标 21（Gradle 用 JDK 25 跑没问题） |
-| 产物 | `dist/Nova-Client-1.3.0-MC1.21.11.jar` |
+| Sodium（可选，编译期依赖） | `0.8.15-beta.1+mc1.21.11` |
+| 产物 | `dist/Nova-Client-1.3.2-MC1.21.11.jar` |
 
 ---
 
@@ -102,20 +103,29 @@ accessible method net/minecraft/client/renderer/RenderPipelines register (Lcom/m
 
 ## 已知差距 / 未验证项（重要）
 
-1. **Sodium 集成没有移植。**
-   `26.2` 分支的 `NovaMixinPlugin` + `mixin/sodium` 是针对 Sodium 0.9.2 写的，
-   1.21.11 的 Sodium 是另一套包名和渲染管线，直接照搬会崩。
-   现在 `SodiumCompat` 是个空壳（`isPresent()` 恒为 `false`），
-   X-Ray 走的是**原版渲染路径**，**装了 Sodium 之后 X-Ray 会失效**。
+1. **Sodium 集成已移植**（针对 Sodium `0.8.15-beta.1+mc1.21.11`）。
+   `NovaMixinPlugin` + `nova.sodium.mixins.json`（`required:false`，按需加载）已恢复，
+   `mixin/sodium` 下两个 Mixin 只在对面的 Sodium 存在时才应用。
+   - `BlockRendererMixin`：在 Sodium 的 `BlockRenderer.renderModel` HEAD 取消掉白名单外的方块；
+     `processQuad` / `bufferQuad` 上两个 `require = 0` 的注入负责「透明度模式」
+   - `SodiumWorldRendererMixin`：`setupTerrain` 的第一个 boolean（local slot 4）置 false，
+     关闭遮挡剔除 —— 不关的话墙后的矿会被整块剔除，X-Ray 就白开了
+   - 构建时会打印 3 条 `Cannot remap state/pos/level ...` 警告：
+     那是 remapper 看不到 Sodium 的父类 `AbstractBlockRenderContext` 导致的，
+     **无害**（字段名不在映射表里，本来就不需要 remap；运行期 Mixin 会沿继承链解析到）
+   - ⚠️ 这套是**照着 0.8.15 的字节码写的**，没有实机验证过
 
 2. **Mixin 只做到「目标能解析」，没做实机验证。**
-   `./gradlew build` 的 remapJar 阶段已经确认 **36 个 Mixin 的目标方法/字段在
-   1.21.11 里全部存在**，但注入点（`@At` 里的具体指令）没有实机跑过。
+   `./gradlew build` 的 remapJar 阶段已经确认所有 Mixin 的目标方法/字段在
+   1.21.11 里全部存在；21 个 `@At` 注入锚点也逐个对着映射 jar 的字节码核过了。
+   但「锚点命中」不等于「语义正确」（比如 ordinal 选对了没有），仍需实机确认。
 
-3. **`nova.mixins.json` 里 `injectors.defaultRequire` 被改成了 `0`。**
+3. **`nova.mixins.json` 里 `injectors.defaultRequire` 是 `0`。**
    26.2 分支是 `1`（注入失败直接报错）。1.21.11 还没实测，
    设成 `0` 是为了**万一某个注入点对不上也不会导致游戏启动崩溃**，
-   代价是那个功能会静默失效。等实机验证完可以改回 `1`。
+   代价是那个功能会静默失效。
+   如果发现某个功能没反应，把 `nova.mixins.json` 里的 `defaultRequire` 改成 `1`
+   再启动，崩溃日志会直接点名是哪个 Mixin 出问题。
 
 4. **渲染管线用的是自定义 shader**（`assets/nova/shaders/core/fogless_lines.*`）。
    1.21.11 的 pipeline/shader 加载机制和 26.2 未必完全一致，没实测。

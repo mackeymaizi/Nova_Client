@@ -37,11 +37,15 @@ public abstract class MinecraftMixin implements IMinecraftClient
 
 	/**
 	 * Runs just before {@link Minecraft#handleKeybinds()}, bypassing the
-	 * <code>overlay() == null && screen() == null</code> check in tick().
+	 * {@code overlay == null && screen == null} check in tick().
+	 *
+	 * <p>26.2 anchored this on {@code Gui.overlay()}; on 1.21.11 the overlay is
+	 * a field on {@link Minecraft} instead, so we hook the
+	 * {@code handleKeybinds()} call itself.
 	 */
 	@Inject(method = "tick()V",
 		at = @At(value = "INVOKE",
-			target = "Lnet/minecraft/client/gui/Gui;overlay()Lnet/minecraft/client/gui/screens/Overlay;",
+			target = "Lnet/minecraft/client/Minecraft;handleKeybinds()V",
 			ordinal = 0))
 	private void nova_onHandleKeybinds(CallbackInfo ci)
 	{

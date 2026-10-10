@@ -24,6 +24,12 @@ dependencies {
 
 	// Minecraft still references javax.annotation (JSR305) in places.
 	implementation "com.google.code.findbugs:jsr305:3.0.2"
+
+	// Sodium - compile-only, used by the optional X-Ray integration.
+	// Not bundled: the Sodium mixins are only applied when Sodium is loaded,
+	// and Sodium's own classes are unobfuscated so no remapping is needed for
+	// them (the Minecraft types in their signatures still are).
+	compileOnly files("libs/sodium-fabric-0.8.15-beta.1+mc1.21.11.jar")
 }
 
 loom {

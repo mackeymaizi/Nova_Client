@@ -82,10 +82,14 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer
 	/**
 	 * When PortalGUI is enabled, this temporarily sets the current screen to
 	 * null so that handlePortalTransitionEffect() doesn't close it.
+	 *
+	 * <p>26.2 read the screen through {@code Gui.screen()}; on 1.21.11 it is the
+	 * {@code Minecraft.screen} field.
 	 */
 	@Inject(method = "handlePortalTransitionEffect(Z)V",
-		at = @At(value = "INVOKE",
-			target = "Lnet/minecraft/client/gui/Gui;screen()Lnet/minecraft/client/gui/screens/Screen;",
+		at = @At(value = "FIELD",
+			target = "Lnet/minecraft/client/Minecraft;screen:Lnet/minecraft/client/gui/screens/Screen;",
+			opcode = Opcodes.GETFIELD,
 			ordinal = 0))
 	private void nova_beforePortalTransition(boolean fromPortalEffect,
 		CallbackInfo ci)
@@ -101,11 +105,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer
 	}
 
 	/** Restores the screen once handlePortalTransitionEffect() is done. */
-	@Inject(method = "handlePortalTransitionEffect(Z)V",
-		at = @At(value = "FIELD",
-			target = "Lnet/minecraft/client/player/LocalPlayer;portalEffectIntensity:F",
-			opcode = Opcodes.GETFIELD,
-			ordinal = 1))
+	@Inject(method = "handlePortalTransitionEffect(Z)V", at = @At("RETURN"))
 	private void nova_afterPortalTransition(boolean fromPortalEffect,
 		CallbackInfo ci)
 	{

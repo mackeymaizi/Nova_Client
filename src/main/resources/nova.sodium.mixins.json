@@ -1,0 +1,21 @@
+{
+  "required": false,
+  "package": "net.novaclient.mixin.sodium",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8",
+  "plugin": "net.novaclient.NovaMixinPlugin",
+  "mixinextras": {
+    "minVersion": "0.5.0"
+  },
+  "mixins": [],
+  "client": [
+    "BlockRendererMixin",
+    "SodiumWorldRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}
