@@ -8,14 +8,16 @@
 package net.novaclient.mixin.sodium;
 
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 
+import net.caffeinemc.mods.sodium.client.render.chunk.compile.ChunkBuildBuffers;
 import net.caffeinemc.mods.sodium.client.render.chunk.compile.pipeline.BlockRenderer;
+import net.caffeinemc.mods.sodium.client.render.chunk.translucent_sorting.TranslucentGeometryCollector;
+import net.caffeinemc.mods.sodium.client.world.LevelSlice;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
@@ -33,32 +35,73 @@ import net.novaclient.module.modules.render.XRayModule;
  * {@code ModelBlockRenderer} hook never runs when Sodium is installed. This
  * mixin applies the same whitelist logic to Sodium's {@link BlockRenderer}.
  *
+ * <h2>Why there are no {@code @Shadow} fields</h2>
+ *
+ * <p>The block currently being meshed lives in fields declared on
+ * {@code AbstractBlockRenderContext} - the <em>superclass</em> of
+ * {@code BlockRenderer} - not on {@code BlockRenderer} itself. Mixin can only
+ * resolve an inherited {@code @Shadow} through a refMap, and this project has
+ * none, so {@code @Shadow state} fails at apply time with <em>"@Shadow field
+ * state was not located in the target class"</em> and the whole mixin is
+ * dropped, silently disabling X-Ray whenever Sodium is installed.
+ *
+ * <p>Instead the values are taken from method parameters, which are always
+ * there: {@code prepare} receives the {@link LevelSlice} and {@code renderModel}
+ * receives the {@link BlockState} and {@link BlockPos}. Both run on the same
+ * chunk-build worker thread for a given section, so a {@link ThreadLocal}
+ * carries them across to the quad-level hooks below.
+ *
  * <p>Targets Sodium 0.9.2 for Minecraft 26.2. Sodium ships unobfuscated, hence
  * {@code remap = false} on every injector.
  */
 @Mixin(value = BlockRenderer.class, remap = false)
 public abstract class BlockRendererMixin
 {
-	@Shadow
-	protected BlockState state;
+	/** Block + level currently being meshed by this worker thread. */
+	private static final ThreadLocal<Ctx> nova$ctx = new ThreadLocal<>();
 
-	@Shadow
-	protected BlockPos pos;
+	private static final class Ctx
+	{
+		BlockState state;
+		BlockPos pos;
+		BlockAndTintGetter level;
+	}
 
-	@Shadow
-	protected BlockAndTintGetter level;
+	/** The level is handed to Sodium once per chunk build. */
+	@Inject(method = "prepare", at = @At("HEAD"), remap = false)
+	private void nova$xrayPrepare(ChunkBuildBuffers buffers, LevelSlice level,
+		TranslucentGeometryCollector collector, CallbackInfo ci)
+	{
+		Ctx ctx = nova$ctx.get();
 
-	/**
-	 * Hides every block that is not on X-Ray's whitelist. This is the
-	 * "opacity = 0" path and covers the common case entirely.
-	 */
+		if(ctx == null)
+		{
+			ctx = new Ctx();
+			nova$ctx.set(ctx);
+		}
+
+		ctx.level = level;
+	}
+
+	/** Called for every block; this is the hook that actually hides it. */
 	@Inject(method = "renderModel", at = @At("HEAD"), cancellable = true,
 		remap = false)
-	private void nova_xrayRenderModel(BlockStateModel model,
+	private void nova$xrayRenderModel(BlockStateModel model,
 		BlockState blockState, BlockPos blockPos, BlockPos origin,
 		CallbackInfo ci)
 	{
-		if(isBlocked(blockState, blockPos, level))
+		Ctx ctx = nova$ctx.get();
+
+		if(ctx == null)
+		{
+			ctx = new Ctx();
+			nova$ctx.set(ctx);
+		}
+
+		ctx.state = blockState;
+		ctx.pos = blockPos;
+
+		if(isBlocked(blockState, blockPos, ctx.level))
 			ci.cancel();
 	}
 
@@ -75,10 +118,14 @@ public abstract class BlockRendererMixin
 		at = @At(value = "INVOKE",
 			target = "Lnet/caffeinemc/mods/sodium/client/render/model/MutableQuadViewImpl;getRenderType()Lnet/minecraft/client/renderer/chunk/ChunkSectionLayer;"),
 		require = 0, remap = false)
-	private ChunkSectionLayer nova_xrayRenderType(ChunkSectionLayer original)
+	private ChunkSectionLayer nova$xrayRenderType(ChunkSectionLayer original)
 	{
-		return isDimmed(state, pos, level)
-			? ChunkSectionLayer.TRANSLUCENT : original;
+		Ctx ctx = nova$ctx.get();
+
+		if(ctx == null || !isDimmed(ctx.state, ctx.pos, ctx.level))
+			return original;
+
+		return ChunkSectionLayer.TRANSLUCENT;
 	}
 
 	/** Applies X-Ray's alpha to the quad colour. */
@@ -86,9 +133,11 @@ public abstract class BlockRendererMixin
 		at = @At(value = "INVOKE",
 			target = "Lnet/caffeinemc/mods/sodium/client/render/model/MutableQuadViewImpl;baseColor(I)I"),
 		require = 0, remap = false)
-	private int nova_xrayBaseColor(int original)
+	private int nova$xrayBaseColor(int original)
 	{
-		if(!isDimmed(state, pos, level))
+		Ctx ctx = nova$ctx.get();
+
+		if(ctx == null || !isDimmed(ctx.state, ctx.pos, ctx.level))
 			return original;
 
 		int alpha = getAlpha();
@@ -109,7 +158,7 @@ public abstract class BlockRendererMixin
 	{
 		XRayModule xray = xray();
 
-		if(xray == null || !xray.isEnabled())
+		if(xray == null || state == null || !xray.isEnabled())
 			return false;
 
 		if(!xray.isBlocked(state.getBlock()))
@@ -132,7 +181,8 @@ public abstract class BlockRendererMixin
 	{
 		XRayModule xray = xray();
 
-		if(xray == null || !xray.isEnabled() || xray.getOpacity() <= 0)
+		if(xray == null || state == null || !xray.isEnabled()
+			|| xray.getOpacity() <= 0)
 			return false;
 
 		if(!xray.isBlocked(state.getBlock()))
