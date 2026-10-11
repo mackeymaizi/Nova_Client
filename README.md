@@ -9,8 +9,8 @@ Minecraft Fabric 辅助客户端，自研架构。
 
 | 分支 | 游戏版本 | Java | 本地文件夹 | 产物 |
 |---|---|---|---|---|
-| [`26.2`](../../tree/26.2) | Minecraft **26.2** | 25 | `./26.2/` | `Nova-Client-1.3.2-MC26.2.jar` |
-| [`1.21.11`](../../tree/1.21.11) | Minecraft **1.21.11** | 21 | `./1.21.11/` | `Nova-Client-1.3.3-MC1.21.11.jar` |
+| [`26.2`](../../tree/26.2) | Minecraft **26.2** | 25 | `./26.2/` | `Nova-Client-1.3.8-MC26.2.jar` |
+| [`1.21.11`](../../tree/1.21.11) | Minecraft **1.21.11** | 21 | `./1.21.11/` | `Nova-Client-1.3.9-MC1.21.11.jar` |
 
 两个版本功能集完全一致（**78 个模块、29 条命令**），只是 API 适配不同。
 1.21.11 的移植细节见该分支的 `PORTING.md`，版本历史见 `CHANGELOG.md`。
@@ -61,6 +61,10 @@ cd 26.2      # 或 cd 1.21.11
 - **Kaboom**（Wurst 移植，轰爆）
 - **PacketFly**（Meteor Rejects 移植，发包飞行，速度上限 100000 格/秒）
 - **Sodium 兼容 XRay**（两个分支都支持）
+  - 装 Sodium 时 X-Ray 会走 Sodium 自己的区块构建管线（`BlockRendererMixin`），
+    并强制关闭遮挡剔除（`RenderSectionManagerMixin`），否则墙后的矿会被整块剔除。
+  - 注意：这两个 Mixin 只依赖**方法参数**，**不能用 `@Shadow` 去碰父类字段** ——
+    本项目的 Mixin 没有 refMap，`@Shadow` 继承字段会在 apply 阶段直接失败并静默丢弃整个 Mixin。
 
 ## 许可
 
