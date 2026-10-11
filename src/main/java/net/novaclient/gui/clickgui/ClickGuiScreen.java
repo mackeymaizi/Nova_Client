@@ -8,7 +8,9 @@
 package net.novaclient.gui.clickgui;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -30,29 +32,30 @@ import net.novaclient.setting.Settings;
  * Meteor-style ClickGUI with Nova theming (gradient rgb(37,99,235) ->
  * rgb(78,72,230)).
  *
- * <p>The layout is responsive: panels are laid out in a grid that always fits
- * inside the screen. When the window is too small to show every category, all
- * panels are force-collapsed so that the category headers stay visible and
- * reachable instead of drifting off-screen.
+ * <p>Like Meteor's window system, each category is an <b>independent,
+ * draggable window</b> rather than a cell in a fixed grid. Window positions
+ * are remembered in {@code config/clickgui.json}, so panels never pile up on
+ * top of each other and the user can arrange them however they like. The
+ * default layout lays the windows out in rows, offsetting each row by the
+ * <i>actual</i> height of the previous one.
  */
 public final class ClickGuiScreen extends Screen
 {
-	private static final int HEADER_HEIGHT = 16;
-	private static final int ROW_HEIGHT = 14;
+	private static final int HEADER_HEIGHT = 13;
+	private static final int ROW_HEIGHT = 11;
+	private static final int FRAME_PAD = 3;
 
-	private static final int PREFERRED_WIDTH = 120;
-	private static final int MIN_WIDTH = 84;
-	private static final int GAP = 6;
-	private static final int MARGIN = 8;
-	private static final int TOP = 12;
+	private static final int WINDOW_WIDTH = 104;
+	private static final int GAP = 4;
+	private static final int MARGIN = 6;
 
-	/** Vertical space reserved for chroma/borders in the scroll maths. */
-	private static final int SCROLL_PADDING = 60;
+	/** Fraction of the screen height a window body may occupy. */
+	private static final double DEFAULT_BODY_RATIO = 0.72;
 
 	private final List<CategoryPanel> panels = new ArrayList<>();
 	private CategoryPanel dragging;
-	private int dragX;
-	private int dragY;
+	private int dragOffX;
+	private int dragOffY;
 
 	/** True when the screen is too small to fit everything and we collapsed. */
 	private boolean forceCollapsed;
@@ -82,6 +85,20 @@ public final class ClickGuiScreen extends Screen
 			NovaClient.INSTANCE.getConfig().save();
 	}
 
+	/** Persists the ClickGUI window layout (positions + expanded state). */
+	private void saveLayout()
+	{
+		if(NovaClient.INSTANCE == null)
+			return;
+
+		Map<String, double[]> windows = new HashMap<>();
+		for(CategoryPanel panel : panels)
+			windows.put(panel.category.name(),
+				new double[] {panel.x, panel.y, panel.expanded ? 1 : 0});
+
+		NovaClient.INSTANCE.getConfig().saveClickGuiWindows(windows);
+	}
+
 	private static void setRebinding(boolean value)
 	{
 		rebinding = value;
@@ -93,54 +110,89 @@ public final class ClickGuiScreen extends Screen
 		panels.clear();
 
 		ModuleCategory[] categories = ModuleCategory.values();
-		List<List<Module>> moduleLists = new ArrayList<>();
+		Map<String, double[]> saved =
+			NovaClient.INSTANCE == null ? new HashMap<>()
+				: NovaClient.INSTANCE.getConfig().loadClickGuiWindows();
 
+		List<List<Module>> moduleLists = new ArrayList<>();
 		for(ModuleCategory category : categories)
 			moduleLists.add(ModuleManager.getByCategory(category));
 
-		// Work out a column count that keeps every panel on-screen. We prefer
-		// the fewest rows (widest columns) that fit horizontally; if even a
-		// single column of minimum-width panels does not fit we still clamp to
-		// one column so nothing is pushed off the right edge.
-		int available = Math.max(MIN_WIDTH, width - MARGIN * 2);
-		int maxColumns = Math.max(1, (available + GAP) / (MIN_WIDTH + GAP));
-		int columns = Math.min(Math.max(1, categories.length), maxColumns);
+		// Body height available to any single window.
+		int bodyLimit = (int)(height * DEFAULT_BODY_RATIO);
+		int rowStep = HEADER_HEIGHT + bodyLimit + FRAME_PAD + GAP;
 
-		int panelWidth = computePanelWidth(columns, available);
-
-		// If we cannot give every panel a readable width, or the resulting
-		// grid is taller than the screen even when collapsed, force-collapse
-		// everything so the headers remain visible.
-		ClickGuiModule config = config();
-		boolean collapseAllowed = config == null || config.forceCollapse();
-		boolean tooNarrow = columns < categories.length;
-		int rowsNeeded = (categories.length + columns - 1) / columns;
-		boolean tooShort = TOP + rowsNeeded * (HEADER_HEIGHT + GAP) > height;
-		forceCollapsed = collapseAllowed && tooNarrow && tooShort;
-
-		int gridWidth = columns * panelWidth + (columns - 1) * GAP;
-		int startX = Math.max(MARGIN, (width - gridWidth) / 2);
+		// Default layout: lay windows out in rows, wrapping when the next
+		// one would run off the right edge. Every window in a row shares the
+		// same *default* height so the rows never overlap, no matter how
+		// much content each category has (overflow scrolls inside).
+		int curX = MARGIN;
+		int curY = MARGIN;
 
 		for(int i = 0; i < categories.length; i++)
 		{
-			int col = i % columns;
-			int row = i / columns;
+			ModuleCategory category = categories[i];
 
-			int px = startX + col * (panelWidth + GAP);
-			int py = TOP + row * (HEADER_HEIGHT + GAP);
+			// Wrap to a new row if this window would not fit.
+			if(curX + WINDOW_WIDTH > width - MARGIN && curX > MARGIN)
+			{
+				curX = MARGIN;
+				curY += rowStep;
+			}
 
-			CategoryPanel panel = new CategoryPanel(categories[i], px, py,
-				panelWidth, moduleLists.get(i));
-			panel.expanded = !forceCollapsed && !moduleLists.get(i).isEmpty();
+			double[] pos = saved.get(category.name());
+			int px;
+			int py;
+			boolean expanded;
+
+			if(pos != null && pos[0] >= 0 && pos[1] >= 0)
+			{
+				// Use the saved position (clamped on-screen below).
+				px = (int)pos[0];
+				py = (int)pos[1];
+				expanded = pos[2] != 0;
+			}
+			else
+			{
+				px = curX;
+				py = curY;
+				expanded = !moduleLists.get(i).isEmpty();
+
+				curX += WINDOW_WIDTH + GAP;
+			}
+
+			CategoryPanel panel = new CategoryPanel(category, px, py,
+				WINDOW_WIDTH, moduleLists.get(i), bodyLimit);
+			panel.expanded = expanded && !moduleLists.get(i).isEmpty();
 			panels.add(panel);
 		}
+
+		// Clamp every window fully on-screen (so nothing is unreachable
+		// after a resolution change).
+		for(CategoryPanel panel : panels)
+			clampOnScreen(panel);
 	}
 
-	private int computePanelWidth(int columns, int available)
+	/** Keeps a panel's header reachable and its body inside the screen. */
+	private void clampOnScreen(CategoryPanel panel)
 	{
-		int width = (available - (columns - 1) * GAP) / columns;
-		// Never exceed the preferred width, never go under the minimum.
-		return Math.max(MIN_WIDTH, Math.min(PREFERRED_WIDTH, width));
+		int h = panel.totalHeight();
+
+		if(panel.x + panel.width > width - MARGIN)
+			panel.x = Math.max(MARGIN, width - MARGIN - panel.width);
+		if(panel.x < MARGIN)
+			panel.x = MARGIN;
+
+		if(panel.y + h > height - MARGIN)
+			panel.y = Math.max(MARGIN, height - MARGIN - h);
+		if(panel.y < MARGIN)
+			panel.y = MARGIN;
+	}
+
+	/** Height of the longest category (used only for the layout hint). */
+	private boolean tooSmall()
+	{
+		return width < WINDOW_WIDTH + MARGIN * 2;
 	}
 
 	@Override
@@ -153,9 +205,9 @@ public final class ClickGuiScreen extends Screen
 		for(CategoryPanel panel : panels)
 			panel.render(context, mouseX, mouseY, delta, font);
 
-		if(forceCollapsed)
+		if(tooSmall() || forceCollapsed)
 		{
-			String hint = "Screen too small - all categories collapsed.";
+			String hint = "Screen too small for the ClickGUI.";
 			context.drawString(font, hint, MARGIN,
 				height - font.lineHeight - 4, GuiTheme.TEXT_DIM);
 		}
@@ -182,18 +234,24 @@ public final class ClickGuiScreen extends Screen
 		double mouseY = event.y();
 		int button = event.button();
 
-		for(CategoryPanel panel : panels)
+		// Iterate back-to-front: the panel drawn last sits on top, so it
+		// must receive the click first. This is what fixes clicks landing
+		// on the window *behind* the one under the cursor.
+		for(int i = panels.size() - 1; i >= 0; i--)
 		{
+			CategoryPanel panel = panels.get(i);
 			if(panel.mouseClicked(mouseX, mouseY, button))
 			{
+				// Bring the interacted panel to the front.
 				if(button == 0 && panel.isHeaderHovered(mouseX, mouseY))
 				{
 					dragging = panel;
-					dragX = (int)(mouseX - panel.x());
-					dragY = (int)(mouseY - panel.y());
-					panels.remove(panel);
-					panels.add(panel);
+					dragOffX = (int)(mouseX - panel.x);
+					dragOffY = (int)(mouseY - panel.y);
 				}
+
+				panels.remove(panel);
+				panels.add(panel);
 				return true;
 			}
 		}
@@ -204,7 +262,12 @@ public final class ClickGuiScreen extends Screen
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event)
 	{
-		dragging = null;
+		if(dragging != null)
+		{
+			dragging = null;
+			saveLayout();
+		}
+
 		return super.mouseReleased(event);
 	}
 
@@ -214,8 +277,9 @@ public final class ClickGuiScreen extends Screen
 	{
 		if(dragging != null)
 		{
-			dragging.setPosition((int)(event.x() - this.dragX),
-				(int)(event.y() - this.dragY));
+			dragging.x = (int)(event.x() - dragOffX);
+			dragging.y = (int)(event.y() - dragOffY);
+			clampOnScreen(dragging);
 			return true;
 		}
 
@@ -226,8 +290,9 @@ public final class ClickGuiScreen extends Screen
 	public boolean mouseScrolled(double mouseX, double mouseY, double horizontal,
 		double vertical)
 	{
-		for(CategoryPanel panel : panels)
-			if(panel.mouseScrolled(mouseX, mouseY, vertical))
+		// Only the topmost panel under the cursor scrolls.
+		for(int i = panels.size() - 1; i >= 0; i--)
+			if(panels.get(i).mouseScrolled(mouseX, mouseY, vertical))
 				return true;
 
 		return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
@@ -290,6 +355,7 @@ public final class ClickGuiScreen extends Screen
 	{
 		// Stop listening for keys and persist any GUI changes.
 		clearRebinding();
+		saveLayout();
 
 		if(NovaClient.INSTANCE != null)
 			NovaClient.INSTANCE.getConfig().save();
@@ -309,7 +375,7 @@ public final class ClickGuiScreen extends Screen
 		return ModuleManager.get(ClickGuiModule.class);
 	}
 
-	/** A draggable, collapsible category panel. */
+	/** A draggable, collapsible category window. */
 	private final class CategoryPanel
 	{
 		private final ModuleCategory category;
@@ -318,7 +384,7 @@ public final class ClickGuiScreen extends Screen
 		private int x;
 		private int y;
 		private final int width;
-		private final int headerHeight = HEADER_HEIGHT;
+		private final int bodyLimit;
 
 		private boolean expanded = true;
 		private int scroll;
@@ -329,42 +395,32 @@ public final class ClickGuiScreen extends Screen
 		private Module rebinding;
 
 		private CategoryPanel(ModuleCategory category, int x, int y, int width,
-			List<Module> modules)
+			List<Module> modules, int bodyLimit)
 		{
 			this.category = category;
 			this.x = x;
 			this.y = y;
 			this.width = width;
 			this.modules = modules;
+			this.bodyLimit = bodyLimit;
 
-			// Start collapsed if there is nothing to show.
 			this.expanded = !modules.isEmpty();
 		}
 
-		private int x()
+		private boolean isHeaderHovered(double mouseX, double mouseY)
 		{
-			return x;
-		}
-
-		private int y()
-		{
-			return y;
-		}
-
-		private void setPosition(int x, int y)
-		{
-			this.x = x;
-			this.y = y;
+			return mouseX >= x && mouseX <= x + width && mouseY >= y
+				&& mouseY <= y + HEADER_HEIGHT;
 		}
 
 		/** Height of the expanded module body (keybind row + settings). */
 		private int expandedBody()
 		{
-			// One row for the keybind, plus one per setting, plus padding.
 			return (settingRows.size() + 1) * ROW_HEIGHT + 4;
 		}
 
-		private int bodyHeight()
+		/** Full content height of the body, before clamping to the screen. */
+		private int fullBodyHeight()
 		{
 			if(!expanded)
 				return 0;
@@ -377,20 +433,25 @@ public final class ClickGuiScreen extends Screen
 					h += expandedBody();
 			}
 
-			return h + 4;
+			return h + 2;
 		}
 
-		/** Height of the body actually usable without running off-screen. */
-		private int maxVisibleBody()
+		/**
+		 * Visible body height. Depends only on the content and the screen,
+		 * never on the window's own y, so clamping the window position stays
+		 * stable (no feedback loop between y and height).
+		 */
+		private int visibleBodyHeight()
 		{
-			return Math.max(ROW_HEIGHT, height - y - headerHeight
-				- SCROLL_PADDING);
+			int full = fullBodyHeight();
+			return Math.max(0, Math.min(full, bodyLimit));
 		}
 
-		private boolean isHeaderHovered(double mouseX, double mouseY)
+		/** Total on-screen height of the whole window. */
+		private int totalHeight()
 		{
-			return mouseX >= x && mouseX <= x + width && mouseY >= y
-				&& mouseY <= y + headerHeight;
+			int body = visibleBodyHeight();
+			return HEADER_HEIGHT + (body > 0 ? body + FRAME_PAD : 0);
 		}
 
 		private void rebuildSettingRows(Module module)
@@ -407,60 +468,101 @@ public final class ClickGuiScreen extends Screen
 			ClickGuiModule config = config();
 			int opacity = config == null ? 235 : config.opacity();
 
+			int bodyVisible = visibleBodyHeight();
+			int bodyTop = y + HEADER_HEIGHT;
+			int frameBottom = y + totalHeight();
+
+			// Window frame (behind header + body).
+			context.fill(x, y, x + width, frameBottom,
+				(GuiTheme.PANEL & 0x00FFFFFF) | (Math.min(opacity, 235) << 24));
+
 			// Header with the Nova gradient.
-			context.fillGradient(x, y, x + width, y + headerHeight,
+			context.fillGradient(x, y, x + width, y + HEADER_HEIGHT,
 				GuiTheme.PRIMARY_TOP, GuiTheme.PRIMARY_BOTTOM);
-			context.drawString(font, category.displayName(), x + 5,
-				y + (headerHeight - 8) / 2 + 1, 0xFFFFFFFF);
-			context.drawString(font, expanded ? "-" : "+", x + width - 10,
-				y + (headerHeight - 8) / 2 + 1, 0xFFFFFFFF);
+			context.drawString(font, category.displayName(), x + 4,
+				y + (HEADER_HEIGHT - 8) / 2 + 1, 0xFFFFFFFF);
+			context.drawString(font, expanded ? "-" : "+", x + width - 8,
+				y + (HEADER_HEIGHT - 8) / 2 + 1, 0xFFFFFFFF);
+
+			// Border.
+			context.renderOutline(x, y, x + width, frameBottom,
+				GuiTheme.PANEL_BORDER);
 
 			if(!expanded)
 				return;
 
-			int bodyTop = y + headerHeight;
-			int bodyBottom = bodyTop + bodyHeight();
+			int contentTop = bodyTop + 1;
+			int contentBottom = contentTop + bodyVisible;
 
-			// Panel background.
-			context.fill(x, bodyTop, x + width, bodyBottom,
-				(GuiTheme.PANEL & 0x00FFFFFF) | (Math.min(opacity, 235) << 24));
+			// Clip by simply not drawing rows outside the visible body.
+			int full = fullBodyHeight();
+			int maxScroll = Math.max(0, full - bodyVisible);
 
-			int rowY = bodyTop + 2 - scroll;
+			// Scrollbar (thin) when the content overflows.
+			if(maxScroll > 0)
+			{
+				int trackX = x + width - 3;
+				int trackTop = contentTop;
+				int trackH = bodyVisible;
+				int thumbH = Math.max(8,
+					(int)((double)trackH * bodyVisible / full));
+				int thumbY = trackTop
+					+ (int)((double)(trackH - thumbH) * scroll / maxScroll);
+				context.fill(trackX, trackTop, trackX + 2, trackTop + trackH,
+					0x40000000);
+				context.fill(trackX, thumbY, trackX + 2, thumbY + thumbH,
+					GuiTheme.PRIMARY_TOP);
+			}
+
+			// Rows.
+			int rowY = contentTop - scroll;
 
 			for(Module module : modules)
 			{
+				boolean visible = rowY + ROW_HEIGHT > contentTop
+					&& rowY < contentBottom;
+
 				boolean hovered = mouseX >= x && mouseX <= x + width
 					&& mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT;
 
-				int rowColor = module.isEnabled() ? GuiTheme.PRIMARY_TOP
-					: GuiTheme.PANEL_HEADER;
-				if(hovered && !module.isEnabled())
-					rowColor = GuiTheme.PANEL_HEADER + 0x060606;
+				if(visible)
+				{
+					int rowColor = module.isEnabled() ? GuiTheme.PRIMARY_TOP
+						: GuiTheme.PANEL_HEADER;
+					if(hovered && !module.isEnabled())
+						rowColor = GuiTheme.PANEL_HEADER + 0x060606;
 
-				context.fill(x + 2, rowY, x + width - 2, rowY + ROW_HEIGHT,
-					rowColor);
+					context.fill(x + 1, rowY, x + width - 1,
+						rowY + ROW_HEIGHT, rowColor);
 
-				int textColor = module.isEnabled() ? 0xFFFFFFFF
-					: GuiTheme.TEXT;
+					int textColor = module.isEnabled() ? 0xFFFFFFFF
+						: GuiTheme.TEXT;
 
-				String label = module.displayName();
-				String info = module.getInfoString();
-				if(info != null && !info.isEmpty())
-					label = label + " " + info;
+					String label = module.displayName();
+					String info = module.getInfoString();
+					if(info != null && !info.isEmpty())
+						label = label + " " + info;
 
-				context.drawString(font, label, x + 6, rowY + 3, textColor);
+					context.drawString(font, label, x + 4, rowY + 2, textColor);
+				}
 
 				if(module == expandedModule)
 				{
 					int sy = rowY + ROW_HEIGHT;
-					renderKeybindRow(context, font, module, x + 2,
-						sy, width - 4, mouseX, mouseY);
+
+					if(visible)
+						renderKeybindRow(context, font, module, x + 1, sy,
+							width - 2, mouseX, mouseY, contentTop,
+							contentBottom);
+
 					sy += ROW_HEIGHT;
 
 					for(SettingRow row : settingRows)
 					{
-						row.render(context, font, x + 6, sy, width - 12,
-							mouseX, mouseY);
+						if(sy + ROW_HEIGHT > contentTop && sy < contentBottom)
+							row.render(context, font, x + 4, sy, width - 8,
+								mouseX, mouseY);
+
 						sy += ROW_HEIGHT;
 					}
 				}
@@ -469,17 +571,16 @@ public final class ClickGuiScreen extends Screen
 				if(module == expandedModule)
 					rowY += expandedBody();
 			}
-
-			// Border.
-			context.renderOutline(x, y, x + width, bodyBottom,
-				GuiTheme.PANEL_BORDER);
 		}
 
 		/** Draws the "Keybind" row for an expanded module. */
 		private void renderKeybindRow(GuiGraphics context,
 			net.minecraft.client.gui.Font font, Module module, int x, int y,
-			int width, int mouseX, int mouseY)
+			int width, int mouseX, int mouseY, int clipTop, int clipBottom)
 		{
+			if(y + ROW_HEIGHT <= clipTop || y >= clipBottom)
+				return;
+
 			boolean waiting = rebinding == module;
 			boolean hovered = mouseX >= x && mouseX <= x + width && mouseY >= y
 				&& mouseY <= y + ROW_HEIGHT;
@@ -490,36 +591,49 @@ public final class ClickGuiScreen extends Screen
 			else if(hovered)
 				context.fill(x, y, x + width, y + ROW_HEIGHT, GuiTheme.HOVER);
 
-			String value = waiting ? "<press key>"
-				: KeyNames.of(module.keybind());
+			String value = waiting ? "<key>" : KeyNames.of(module.keybind());
 
-			context.drawString(font, "Keybind", x + 4, y + 3,
+			context.drawString(font, "Key", x + 3, y + 2,
 				waiting ? 0xFFFFFFFF : GuiTheme.TEXT_DIM);
-			context.drawString(font, value, x + width - font.width(value) - 6,
-				y + 3, waiting ? 0xFFFFFFFF : GuiTheme.TEXT);
+			context.drawString(font, value, x + width - font.width(value) - 4,
+				y + 2, waiting ? 0xFFFFFFFF : GuiTheme.TEXT);
 		}
 
 		private boolean mouseClicked(double mouseX, double mouseY, int button)
 		{
-			if(mouseX < x || mouseX > x + width || mouseY < y)
+			if(mouseX < x || mouseX > x + width || mouseY < y
+				|| mouseY > y + totalHeight())
 				return false;
 
 			if(isHeaderHovered(mouseX, mouseY))
 			{
+				// Right-click toggles collapse; left-click starts a drag
+				// (handled by the screen so it can bring us to the front).
 				if(button == 1)
+				{
 					expanded = !expanded;
+					scroll = 0;
+					saveLayout();
+				}
+
 				return true;
 			}
 
 			if(!expanded)
 				return false;
 
-			int bodyTop = y + headerHeight;
-			int rowY = bodyTop + 2 - scroll;
+			int contentTop = y + HEADER_HEIGHT + 1;
+			int contentBottom = contentTop + visibleBodyHeight();
+			int rowY = contentTop - scroll;
 
 			for(Module module : modules)
 			{
-				if(mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT)
+				boolean rowVisible = rowY + ROW_HEIGHT > contentTop
+					&& rowY < contentBottom;
+				boolean inRow = mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT;
+
+				if(rowVisible && inRow && mouseY >= contentTop
+					&& mouseY <= contentBottom)
 				{
 					if(button == 0)
 					{
@@ -532,6 +646,7 @@ public final class ClickGuiScreen extends Screen
 						expandedModule =
 							expandedModule == module ? null : module;
 						rebinding = null;
+						scroll = 0;
 
 						if(expandedModule != null)
 							rebuildSettingRows(module);
@@ -544,12 +659,12 @@ public final class ClickGuiScreen extends Screen
 					int sy = rowY + ROW_HEIGHT;
 
 					// Keybind row (first row of the expanded body).
-					if(mouseY >= sy && mouseY <= sy + ROW_HEIGHT)
+					if(sy + ROW_HEIGHT > contentTop && sy < contentBottom
+						&& mouseY >= sy && mouseY <= sy + ROW_HEIGHT)
 					{
 						if(button == 0)
 						{
 							rebinding = rebinding == module ? null : module;
-							// Only one module can listen at a time.
 							if(rebinding != null)
 								for(CategoryPanel p : panels)
 									if(p != this)
@@ -570,8 +685,10 @@ public final class ClickGuiScreen extends Screen
 
 					for(SettingRow row : settingRows)
 					{
-						if(row.mouseClicked(mouseX, mouseY, x + 6, sy,
-							width - 12, button))
+						boolean visible = sy + ROW_HEIGHT > contentTop
+							&& sy < contentBottom;
+						if(visible && row.mouseClicked(mouseX, mouseY, x + 4,
+							sy, width - 8, button))
 							return true;
 						sy += ROW_HEIGHT;
 					}
@@ -582,23 +699,26 @@ public final class ClickGuiScreen extends Screen
 					rowY += expandedBody();
 			}
 
-			return true;
+			// Click inside the body but not on a row: consume it so it does
+			// not fall through to panels behind this one.
+			return mouseY >= contentTop && mouseY <= contentBottom;
 		}
 
 		private boolean mouseScrolled(double mouseX, double mouseY,
 			double vertical)
 		{
 			if(mouseX < x || mouseX > x + width || mouseY < y
-				|| mouseY > y + headerHeight + bodyHeight())
+				|| mouseY > y + totalHeight())
 				return false;
 
-			int total = bodyHeight();
-			int visible = maxVisibleBody();
-			if(total <= visible)
+			int full = fullBodyHeight();
+			int visible = visibleBodyHeight();
+			int maxScroll = Math.max(0, full - visible);
+			if(maxScroll <= 0)
 				return false;
 
 			scroll -= (int)(vertical * 12);
-			scroll = Math.max(0, Math.min(scroll, total - visible));
+			scroll = Math.max(0, Math.min(scroll, maxScroll));
 			return true;
 		}
 	}
@@ -627,10 +747,10 @@ public final class ClickGuiScreen extends Screen
 			if(setting instanceof BoolSetting bool)
 				value = bool.isChecked() ? "on" : "off";
 
-			context.drawString(font, setting.name(), x, y + 3,
+			context.drawString(font, setting.name(), x, y + 2,
 				GuiTheme.TEXT_DIM);
 			context.drawString(font, value, x + width - font.width(value) - 2,
-				y + 3, GuiTheme.TEXT);
+				y + 2, GuiTheme.TEXT);
 		}
 
 		private boolean mouseClicked(double mouseX, double mouseY, int x, int y,
