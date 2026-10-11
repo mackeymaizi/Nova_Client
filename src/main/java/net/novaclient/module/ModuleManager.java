@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.lwjgl.glfw.GLFW;
 
+import net.novaclient.NovaClient;
 import net.novaclient.event.events.KeyPressEvent;
 import net.novaclient.event.EventBus;
 import net.novaclient.module.modules.client.ClickGuiModule;
@@ -208,6 +209,14 @@ public final class ModuleManager
 	private static void onKeyPress(KeyPressEvent event)
 	{
 		if(event.action() != GLFW.GLFW_PRESS)
+			return;
+
+		// Ignore keybinds while a GUI is open, except Nova's own ClickGUI
+		// (so its close key keeps working). Without this, pressing the
+		// ClickGUI key inside chat / inventory would spawn another screen.
+		net.minecraft.client.gui.screens.Screen screen = NovaClient.MC.screen;
+		if(screen != null
+			&& !(screen instanceof net.novaclient.gui.clickgui.ClickGuiScreen))
 			return;
 
 		for(Module module : MODULES)
