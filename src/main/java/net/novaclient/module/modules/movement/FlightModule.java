@@ -11,11 +11,13 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.novaclient.NovaClient;
+import net.novaclient.event.events.MouseScrollEvent;
 import net.novaclient.event.events.UpdateEvent;
 import net.novaclient.module.Module;
 import net.novaclient.module.ModuleCategory;
 import net.novaclient.setting.BoolSetting;
 import net.novaclient.setting.DoubleSetting;
+import net.novaclient.setting.IntSetting;
 
 /** Ported from Wurst's FlightHack. */
 public final class FlightModule extends Module
@@ -26,9 +28,28 @@ public final class FlightModule extends Module
 	private final DoubleSetting verticalSpeed = new DoubleSetting(
 		"Vertical speed", "Vertical flight speed.", 1, 0.05, 5, 0.05);
 
+	private final BoolSetting allowUnsafeVerticalSpeed = new BoolSetting(
+		"Allow unsafe vertical speed",
+		"Lets the vertical speed go beyond the values the game would normally allow.",
+		false);
+
+	private final BoolSetting scrollToChangeSpeed = new BoolSetting(
+		"Scroll to change speed",
+		"Change the horizontal/vertical speed by scrolling while flying.", true);
+
+	private final BoolSetting renderSpeed = new BoolSetting("Show speed in HackList",
+		"Shows the current flight speed next to the module name.", true);
+
 	private final BoolSetting antiKick = new BoolSetting("Anti-Kick",
 		"Slightly moves you down every so often to avoid being kicked.",
 		false);
+
+	private final IntSetting antiKickInterval = new IntSetting("Anti-Kick Interval",
+		"How often the anti-kick dip is applied, in ticks.", 70, 5, 80, 1);
+
+	private final DoubleSetting antiKickDistance = new DoubleSetting(
+		"Anti-Kick Distance", "How far the anti-kick dip moves you down.",
+		0.035, 0.01, 0.2, 0.001);
 
 	private int tickCounter;
 
@@ -39,9 +60,44 @@ public final class FlightModule extends Module
 
 		addSetting(horizontalSpeed);
 		addSetting(verticalSpeed);
+		addSetting(allowUnsafeVerticalSpeed);
+		addSetting(scrollToChangeSpeed);
+		addSetting(renderSpeed);
 		addSetting(antiKick);
+		addSetting(antiKickInterval);
+		addSetting(antiKickDistance);
 
 		subscribe(UpdateEvent.class, e -> onUpdate());
+		subscribe(MouseScrollEvent.class, this::onScroll);
+	}
+
+	private void onScroll(MouseScrollEvent event)
+	{
+		if(!scrollToChangeSpeed.isChecked())
+			return;
+
+		double delta = event.vertical() * 0.05;
+		if(delta == 0)
+			return;
+
+		horizontalSpeed.set(clampSpeed(horizontalSpeed.get() + delta,
+			horizontalSpeed.min(), horizontalSpeed.max()));
+		verticalSpeed.set(clampSpeed(verticalSpeed.get() + delta,
+			verticalSpeed.min(), verticalSpeed.max()));
+	}
+
+	private static double clampSpeed(double value, double min, double max)
+	{
+		return Math.max(min, Math.min(max, Math.round(value * 100.0) / 100.0));
+	}
+
+	private double getActualVerticalSpeed()
+	{
+		boolean limitVerticalSpeed = !allowUnsafeVerticalSpeed.isChecked()
+			&& !NovaClient.MC.player.getAbilities().invulnerable;
+
+		return Mth.clamp(horizontalSpeed.get() * verticalSpeed.get(), 0.05,
+			limitVerticalSpeed ? 3.95 : 10);
 	}
 
 	@Override
@@ -53,6 +109,9 @@ public final class FlightModule extends Module
 	@Override
 	public String getInfoString()
 	{
+		if(!renderSpeed.isChecked())
+			return null;
+
 		return String.format("%.2f", horizontalSpeed.get());
 	}
 
@@ -65,7 +124,7 @@ public final class FlightModule extends Module
 		player.setDeltaMovement(Vec3.ZERO);
 		player.getAbilities().flying = false;
 
-		double vSpeed = verticalSpeed.get();
+		double vSpeed = getActualVerticalSpeed();
 
 		if(NovaClient.MC.options.keyJump.isDown())
 			player.addDeltaMovement(new Vec3(0, vSpeed, 0));
@@ -95,10 +154,10 @@ public final class FlightModule extends Module
 	{
 		tickCounter++;
 
-		if(tickCounter < 70)
+		if(tickCounter < antiKickInterval.get())
 			return;
 
-		player.addDeltaMovement(new Vec3(0, -0.035, 0));
+		player.addDeltaMovement(new Vec3(0, -antiKickDistance.get(), 0));
 		tickCounter = 0;
 	}
 }

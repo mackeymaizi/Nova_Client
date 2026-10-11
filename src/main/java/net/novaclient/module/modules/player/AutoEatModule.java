@@ -33,6 +33,18 @@ public final class AutoEatModule extends Module
 	private final BoolSetting offhand = new BoolSetting("Offhand",
 		"Also eat from your offhand.", false);
 
+	private final BoolSetting eatWhileWalking = new BoolSetting("Eat while walking",
+		"Keep eating even while you are moving.", false);
+
+	private final BoolSetting allowHunger = new BoolSetting("Allow hunger effect",
+		"Allow eating food that gives you the Hunger effect.", true);
+
+	private final BoolSetting allowPoison = new BoolSetting("Allow poison effect",
+		"Allow eating food that gives you the Poison effect.", false);
+
+	private final BoolSetting allowChorus = new BoolSetting("Allow chorus fruit",
+		"Allow eating chorus fruit.", false);
+
 	private int oldSlot = -1;
 
 	public AutoEatModule()
@@ -45,6 +57,10 @@ public final class AutoEatModule extends Module
 		addSetting(health);
 		addSetting(preferGaps);
 		addSetting(offhand);
+		addSetting(eatWhileWalking);
+		addSetting(allowHunger);
+		addSetting(allowPoison);
+		addSetting(allowChorus);
 
 		subscribe(UpdateEvent.class, e -> onUpdate());
 	}
@@ -65,6 +81,11 @@ public final class AutoEatModule extends Module
 
 		boolean needsFood = foodData.getFoodLevel() <= hunger.get()
 			|| player.getHealth() <= health.get();
+
+		// "Eat while walking" off = only eat once you have stopped moving.
+		if(!eatWhileWalking.isChecked() && player.input.getMoveVector().lengthSquared()
+			> 1.0E-5F)
+			needsFood = false;
 
 		if(!needsFood || player.isUsingItem())
 		{
@@ -114,6 +135,9 @@ public final class AutoEatModule extends Module
 			if(stack.isEmpty() || stack.get(DataComponents.FOOD) == null)
 				continue;
 
+			if(!isAllowed(stack))
+				continue;
+
 			if(preferGaps.isChecked() && stack.is(net.minecraft.world.item.Items.GOLDEN_APPLE))
 				return i;
 
@@ -122,5 +146,38 @@ public final class AutoEatModule extends Module
 		}
 
 		return fallback;
+	}
+
+	/** Applies the Wurst-style food filters (chorus / hunger / poison). */
+	private boolean isAllowed(ItemStack stack)
+	{
+		var consumable = stack.get(DataComponents.CONSUMABLE);
+
+		if(consumable == null)
+			return true;
+
+		for(var effect : consumable.onConsumeEffects())
+		{
+			if(effect instanceof net.minecraft.world.item.consume_effects
+				.TeleportRandomlyConsumeEffect && !allowChorus.isChecked())
+				return false;
+
+			if(effect instanceof net.minecraft.world.item.consume_effects
+				.ApplyStatusEffectsConsumeEffect apply)
+				for(var instance : apply.effects())
+				{
+					var holder = instance.getEffect();
+
+					if(!allowPoison.isChecked()
+						&& holder.is(net.minecraft.world.effect.MobEffects.POISON))
+						return false;
+
+					if(!allowHunger.isChecked()
+						&& holder.is(net.minecraft.world.effect.MobEffects.HUNGER))
+						return false;
+				}
+		}
+
+		return true;
 	}
 }

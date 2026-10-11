@@ -31,6 +31,15 @@ public final class HoleEspModule extends Module
 	private final IntSetting range = new IntSetting("Range",
 		"Radius to scan for holes.", 6, 1, 16, 1);
 
+	private final IntSetting verticalRange = new IntSetting("Vertical radius",
+		"Vertical radius to scan for holes.", 6, 1, 16, 1);
+
+	private final IntSetting minHeight = new IntSetting("Min height",
+		"Minimum number of air blocks above a hole for it to count.", 3, 3, 8, 1);
+
+	private final BoolSetting ignoreOwn = new BoolSetting("Ignore own hole",
+		"Skip the hole you are currently standing in.", false);
+
 	private final BoolSetting bedrockHoles = new BoolSetting("Bedrock holes",
 		"Show holes made entirely of bedrock.", true);
 
@@ -59,6 +68,9 @@ public final class HoleEspModule extends Module
 		displayName("安全洞透视");
 
 		addSetting(range);
+		addSetting(verticalRange);
+		addSetting(minHeight);
+		addSetting(ignoreOwn);
 		addSetting(bedrockHoles);
 		addSetting(obsidianHoles);
 		addSetting(renderTracers);
@@ -91,16 +103,23 @@ public final class HoleEspModule extends Module
 
 		BlockPos origin = BlockPos.containing(player.position());
 		int r = range.get();
+		int vy = verticalRange.get();
+		int neededHeight = minHeight.get();
 
-		for(BlockPos pos : BlockPos.betweenClosed(origin.offset(-r, -r, -r),
-			origin.offset(r, r, r)))
+		for(BlockPos pos : BlockPos.betweenClosed(origin.offset(-r, -vy, -r),
+			origin.offset(r, vy, r)))
 		{
 			BlockPos immutable = pos.immutable();
 
 			if(immutable.distSqr(origin) > (double)r * r)
 				continue;
 
-			HoleType type = checkHole(level, immutable);
+			if(ignoreOwn.isChecked()
+				&& immutable.getX() == origin.getX()
+				&& immutable.getZ() == origin.getZ())
+				continue;
+
+			HoleType type = checkHole(level, immutable, neededHeight);
 			if(type == null)
 				continue;
 
@@ -115,12 +134,15 @@ public final class HoleEspModule extends Module
 
 	/** Returns the hole type, or null when this isn't a safe hole. */
 	private HoleType checkHole(net.minecraft.world.level.Level level,
-		BlockPos pos)
+		BlockPos pos, int neededHeight)
 	{
-		if(!level.getBlockState(pos).isAir()
-			|| !level.getBlockState(pos.above()).isAir()
-			|| !level.getBlockState(pos.above(2)).isAir())
+		if(!level.getBlockState(pos).isAir())
 			return null;
+
+		// Require the configured number of air blocks above the hole.
+		for(int i = 1; i < neededHeight; i++)
+			if(!level.getBlockState(pos.above(i)).isAir())
+				return null;
 
 		if(level.getBlockState(pos.below()).isAir())
 			return null;

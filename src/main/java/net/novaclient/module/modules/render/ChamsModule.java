@@ -31,6 +31,9 @@ public final class ChamsModule extends Module
 	private final BoolSetting friends = new BoolSetting("Friends",
 		"Outline friends in a different colour.", true);
 
+	private final BoolSetting ignoreSelf = new BoolSetting("Ignore self",
+		"Never outline yourself.", true);
+
 	private final ColorSetting playerColor = new ColorSetting("Player color",
 		"Outline colour for players.", new java.awt.Color(255, 80, 80));
 
@@ -54,6 +57,7 @@ public final class ChamsModule extends Module
 		addSetting(players);
 		addSetting(mobs);
 		addSetting(friends);
+		addSetting(ignoreSelf);
 		addSetting(playerColor);
 		addSetting(friendColor);
 		addSetting(mobColor);
@@ -84,7 +88,7 @@ public final class ChamsModule extends Module
 
 		for(var entity : NovaClient.MC.level.entitiesForRendering())
 		{
-			if(entity == NovaClient.MC.player)
+			if(ignoreSelf.isChecked() && entity == NovaClient.MC.player)
 				continue;
 
 			boolean shouldGlow = false;

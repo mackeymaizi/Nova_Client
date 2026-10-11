@@ -36,6 +36,12 @@ public final class AutoArmorModule extends Module
 	private final BoolSetting swapIfBetter = new BoolSetting("Swap if better",
 		"Replaces your current armour when a better piece is found.", true);
 
+	private final BoolSetting useEnchantments = new BoolSetting("Use enchantments",
+		"Considers the Protection enchantment when scoring armour.", true);
+
+	private final BoolSetting swapWhileMoving = new BoolSetting("Swap while moving",
+		"Also swaps armour while you are moving.", true);
+
 	private int timer;
 
 	public AutoArmorModule()
@@ -46,6 +52,8 @@ public final class AutoArmorModule extends Module
 
 		addSetting(delay);
 		addSetting(swapIfBetter);
+		addSetting(useEnchantments);
+		addSetting(swapWhileMoving);
 
 		subscribe(UpdateEvent.class, e -> onUpdate());
 	}
@@ -54,6 +62,10 @@ public final class AutoArmorModule extends Module
 	{
 		var player = NovaClient.MC.player;
 		if(player == null || player.isCreative())
+			return;
+
+		if(!swapWhileMoving.isChecked()
+			&& player.input.getMoveVector().lengthSquared() > 1.0E-5F)
 			return;
 
 		if(timer > 0)
@@ -132,7 +144,7 @@ public final class AutoArmorModule extends Module
 		};
 	}
 
-	/** Armour value + a small toughness bonus. */
+	/** Armour value + a small toughness bonus (+ protection enchantments). */
 	private double score(ItemStack stack, EquipmentSlot slot)
 	{
 		if(stack.isEmpty())
@@ -144,7 +156,28 @@ public final class AutoArmorModule extends Module
 		if(modifiers == null)
 			return -1;
 
-		return modifiers.compute(Attributes.ARMOR, 0, slot)
+		double score = modifiers.compute(Attributes.ARMOR, 0, slot)
 			+ modifiers.compute(Attributes.ARMOR_TOUGHNESS, 0, slot) * 0.1;
+
+		if(useEnchantments.isChecked())
+			score += enchantmentBonus(stack);
+
+		return score;
+	}
+
+	/** Sums the levels of all enchantments; a cheap proxy for Protection. */
+	private double enchantmentBonus(ItemStack stack)
+	{
+		var enchantments = stack.get(net.minecraft.core.component.DataComponents
+			.ENCHANTMENTS);
+
+		if(enchantments == null || enchantments.isEmpty())
+			return 0;
+
+		int total = 0;
+		for(var entry : enchantments.entrySet())
+			total += entry.getIntValue();
+
+		return total * 0.5;
 	}
 }

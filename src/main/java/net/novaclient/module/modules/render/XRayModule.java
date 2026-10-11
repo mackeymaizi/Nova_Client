@@ -60,6 +60,9 @@ public final class XRayModule extends Module
 	private final IntSetting opacity = new IntSetting("Opacity",
 		"How opaque non-whitelisted blocks are. 0 = invisible.", 0, 0, 254, 5);
 
+	private final IntSetting fluidOpacity = new IntSetting("Fluid opacity",
+		"How opaque non-whitelisted fluids are. 0 = invisible.", 0, 0, 254, 5);
+
 	private final Set<Block> whitelist = ConcurrentHashMap.newKeySet();
 
 	public XRayModule()
@@ -70,6 +73,7 @@ public final class XRayModule extends Module
 
 		addSetting(exposedOnly);
 		addSetting(opacity);
+		addSetting(fluidOpacity);
 
 		loadDefaults();
 	}
@@ -100,6 +104,11 @@ public final class XRayModule extends Module
 	public int getOpacity()
 	{
 		return opacity.get();
+	}
+
+	public int getFluidOpacity()
+	{
+		return fluidOpacity.get();
 	}
 
 	public Set<Block> whitelist()

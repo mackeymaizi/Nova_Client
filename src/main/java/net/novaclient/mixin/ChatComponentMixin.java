@@ -80,20 +80,37 @@ public abstract class ChatComponentMixin
 		if(NovaClient.INSTANCE == null || message == null)
 			return message;
 
+		Component result = message;
+
+		// BetterChat: timestamps, coords protection and the regex filter.
+		BetterChatModule betterChat = ModuleManager.get(BetterChatModule.class);
+		if(betterChat != null)
+		{
+			String rewritten = betterChat.rewrite(message.getString());
+
+			if(rewritten != null
+				&& !rewritten.equals(message.getString()))
+			{
+				MutableComponent replaced = Component.literal(rewritten);
+				replaced.setStyle(message.getStyle());
+				result = replaced;
+			}
+		}
+
 		NameProtectModule nameProtect =
 			ModuleManager.get(NameProtectModule.class);
 
 		if(nameProtect == null || !nameProtect.inChat())
-			return message;
+			return result;
 
-		String original = message.getString();
-		String replaced = nameProtect.protect(original);
+		String original = result.getString();
+		String replacedName = nameProtect.protect(original);
 
-		if(original.equals(replaced))
-			return message;
+		if(original.equals(replacedName))
+			return result;
 
-		MutableComponent result = Component.literal(replaced);
-		result.setStyle(message.getStyle());
-		return result;
+		MutableComponent named = Component.literal(replacedName);
+		named.setStyle(result.getStyle());
+		return named;
 	}
 }

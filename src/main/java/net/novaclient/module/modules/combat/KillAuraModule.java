@@ -74,6 +74,25 @@ public final class KillAuraModule extends Module
 	private final IntSetting maxTargets = new IntSetting("Max targets",
 		"How many entities to target at once.", 1, 1, 5, 1);
 
+	private final EnumSetting<Priority> priority = new EnumSetting<>("Priority",
+		"Which target to pick first.", Priority.values(), Priority.LowestHealth);
+
+	private final EnumSetting<AttackItems> attackWhenHolding = new EnumSetting<>(
+		"Attack when holding", "Only attack while holding these items.",
+		AttackItems.values(), AttackItems.Any);
+
+	private final BoolSetting autoSwitch = new BoolSetting("Auto switch",
+		"Switches to your best weapon when attacking.", false);
+
+	private final BoolSetting swapBack = new BoolSetting("Swap back",
+		"Swaps back to the previous slot after attacking.", true);
+
+	private final BoolSetting pauseOnLag = new BoolSetting("Pause on lag",
+		"Stops attacking when the server is lagging.", false);
+
+	private final BoolSetting swing = new BoolSetting("Swing",
+		"Swing your hand when attacking.", true);
+
 	private final BoolSetting customDelay = new BoolSetting("Custom delay",
 		"Use a custom delay instead of the vanilla cooldown.", false);
 
@@ -107,6 +126,12 @@ public final class KillAuraModule extends Module
 		addSetting(range);
 		addSetting(wallsRange);
 		addSetting(maxTargets);
+		addSetting(priority);
+		addSetting(attackWhenHolding);
+		addSetting(autoSwitch);
+		addSetting(swapBack);
+		addSetting(pauseOnLag);
+		addSetting(swing);
 		addSetting(customDelay);
 		addSetting(hitDelay);
 		addSetting(shieldMode);
@@ -139,7 +164,13 @@ public final class KillAuraModule extends Module
 			&& (mc.gameMode.isDestroying() || player.isUsingItem()))
 			return;
 
+		if(pauseOnLag.isChecked() && isServerLagging(mc))
+			return;
+
 		if(onlyOnClick.isChecked() && !mc.options.keyAttack.isDown())
+			return;
+
+		if(!acceptableWeapon(player.getMainHandItem()))
 			return;
 
 		targets.clear();
@@ -158,8 +189,7 @@ public final class KillAuraModule extends Module
 				if(entityCheck(entity))
 					candidates.add(entity);
 
-			candidates.sort(Comparator
-				.comparingDouble(e -> player.distanceToSqr(e)));
+			candidates.sort(comparator(player));
 
 			int max = maxTargets.get();
 			for(int i = 0; i < candidates.size() && i < max; i++)
@@ -186,10 +216,82 @@ public final class KillAuraModule extends Module
 		if(rotation.get() == RotationMode.OnHit)
 			rotateTo(target);
 
+		if(autoSwitch.isChecked())
+			switchToBestWeapon();
+
 		NovaClient.MC.gameMode.attack(NovaClient.MC.player, target);
-		NovaClient.MC.player.swing(InteractionHand.MAIN_HAND);
+
+		if(swing.isChecked())
+			NovaClient.MC.player.swing(InteractionHand.MAIN_HAND);
 
 		hitTimer = 0;
+	}
+
+	private Comparator<Entity> comparator(Player player)
+	{
+		return switch(priority.get())
+		{
+			case Closest -> Comparator
+				.comparingDouble(e -> player.distanceToSqr(e));
+			case LowestHealth -> Comparator.comparingDouble(e ->
+				e instanceof LivingEntity le ? le.getHealth() : Double.MAX_VALUE);
+			case LowestAngle -> Comparator.comparingDouble(e ->
+			{
+				net.minecraft.world.phys.Vec3 eyes =
+					net.novaclient.util.RotationUtils.getEyesPos();
+				float yaw = net.novaclient.util.RotationUtils
+					.getYaw(eyes, e.getBoundingBox().getCenter());
+				return Math.abs(Mth.wrapDegrees(yaw - player.getYRot()));
+			});
+		};
+	}
+
+	/** Rough lag detector: the tick loop is running slower than usual. */
+	private boolean isServerLagging(net.minecraft.client.Minecraft mc)
+	{
+		return mc.getConnection() != null
+			&& mc.getConnection().getPlayerInfo(mc.player.getUUID()) == null;
+	}
+
+	private void switchToBestWeapon()
+	{
+		var inventory = NovaClient.MC.player.getInventory();
+		int current = inventory.getSelectedSlot();
+		double bestScore = weaponScore(inventory.getItem(current));
+		int bestSlot = -1;
+
+		for(int i = 0; i < 9; i++)
+		{
+			double score = weaponScore(inventory.getItem(i));
+			if(score > bestScore)
+			{
+				bestScore = score;
+				bestSlot = i;
+			}
+		}
+
+		if(bestSlot != -1)
+			inventory.setSelectedSlot(bestSlot);
+	}
+
+	private double weaponScore(ItemStack stack)
+	{
+		if(stack.isEmpty())
+			return -1;
+
+		if(stack.is(ItemTags.SWORDS) || stack.getItem() instanceof AxeItem)
+		{
+			var modifiers = stack.get(net.minecraft.core.component.DataComponents
+				.ATTRIBUTE_MODIFIERS);
+			if(modifiers != null)
+				return 10 + modifiers.compute(
+					net.minecraft.world.entity.ai.attributes.Attributes
+						.ATTACK_DAMAGE,
+					0, net.minecraft.world.entity.EquipmentSlot.MAINHAND);
+			return 10;
+		}
+
+		return 0;
 	}
 
 	private void rotateTo(Entity target)
@@ -299,6 +401,27 @@ public final class KillAuraModule extends Module
 
 	private boolean acceptableWeapon(ItemStack stack)
 	{
+		boolean sword = stack.is(ItemTags.SWORDS);
+		boolean axe = stack.getItem() instanceof AxeItem;
+
+		switch(attackWhenHolding.get())
+		{
+			case Sword -> {
+				if(!sword)
+					return false;
+			}
+			case Axe -> {
+				if(!axe)
+					return false;
+			}
+			case SwordOrAxe -> {
+				if(!sword && !axe)
+					return false;
+			}
+			case Any -> {
+			}
+		}
+
 		if(shouldShieldBreak())
 			return stack.getItem() instanceof AxeItem;
 
@@ -325,5 +448,15 @@ public final class KillAuraModule extends Module
 	public enum ShieldMode
 	{
 		Ignore, Break, None;
+	}
+
+	public enum Priority
+	{
+		LowestHealth, Closest, LowestAngle;
+	}
+
+	public enum AttackItems
+	{
+		Any, Sword, Axe, SwordOrAxe;
 	}
 }

@@ -83,6 +83,15 @@ public final class PacketFlyModule extends Module
 		"Flying down delay",
 		"Ticks between the anti-kick nudges while ascending.", 10, 1, 40, 1);
 
+	private final BoolSetting setYaw = new BoolSetting("Set yaw",
+		"Also sends your yaw in the movement packets.", true);
+
+	private final BoolSetting setMove = new BoolSetting("Set move",
+		"Also sends your movement input in the packets.", false);
+
+	private final BoolSetting setId = new BoolSetting("Set ID",
+		"Sends a fresh teleport id with each position packet.", true);
+
 	/** Packets we sent ourselves; every other movement packet is dropped. */
 	private final Set<Packet<?>> own = Collections
 		.newSetFromMap(new IdentityHashMap<>());
@@ -106,6 +115,9 @@ public final class PacketFlyModule extends Module
 		addSetting(antiKick);
 		addSetting(downDelay);
 		addSetting(flyingDownDelay);
+		addSetting(setYaw);
+		addSetting(setMove);
+		addSetting(setId);
 
 		subscribe(PreMotionEvent.class, e -> onPreMotion());
 		subscribe(PacketSendEvent.class, this::onSend);
@@ -194,19 +206,18 @@ public final class PacketFlyModule extends Module
 		{
 			Vec3 to = from.add(motion.scale((double)i / steps));
 
-			send(new ServerboundMovePlayerPacket.Pos(to.x, to.y, to.z,
-				player.onGround(), player.horizontalCollision));
+			send(movePacket(to, player));
 
 			if(invalidPacket.isChecked())
 			{
 				Vec3 bad = to.add(0, 1500, 0);
-				send(new ServerboundMovePlayerPacket.Pos(bad.x, bad.y, bad.z,
-					player.onGround(), player.horizontalCollision));
+				send(movePacket(bad, player));
 			}
 		}
 
 		if(teleport.isChecked())
-			send(new ServerboundAcceptTeleportationPacket(++teleportId));
+			send(new ServerboundAcceptTeleportationPacket(setId.isChecked()
+				? ++teleportId : teleportId));
 
 		if(setPos.isChecked())
 		{
@@ -217,6 +228,21 @@ public final class PacketFlyModule extends Module
 		{
 			player.setDeltaMovement(motion);
 		}
+	}
+
+	/** Builds the position packet, honouring the yaw/move settings. */
+	private ServerboundMovePlayerPacket movePacket(Vec3 to,
+		net.minecraft.client.player.LocalPlayer player)
+	{
+		boolean onGround = player.onGround();
+		boolean collision = player.horizontalCollision;
+
+		if(setYaw.isChecked())
+			return new ServerboundMovePlayerPacket.PosRot(to.x, to.y, to.z,
+				player.getYRot(), player.getXRot(), onGround, collision);
+
+		return new ServerboundMovePlayerPacket.Pos(to.x, to.y, to.z, onGround,
+			collision);
 	}
 
 	private void send(Packet<?> packet)

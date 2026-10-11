@@ -36,6 +36,15 @@ public final class VelocityModule extends Module
 	private final BoolSetting entityPush = new BoolSetting("Entity push",
 		"Also cancels being pushed by other entities.", false);
 
+	private final BoolSetting blocks = new BoolSetting("Blocks",
+		"Also cancels being pushed out of blocks.", true);
+
+	private final BoolSetting sinking = new BoolSetting("Sinking",
+		"Also cancels the slow sink you get in certain blocks.", false);
+
+	private final BoolSetting fishing = new BoolSetting("Fishing",
+		"Also cancels being pulled by a fishing rod.", false);
+
 	private final EnumSetting<Mode> mode = new EnumSetting<>("Mode",
 		"How knockback is applied.", Mode.values(), Mode.Normal);
 
@@ -50,6 +59,9 @@ public final class VelocityModule extends Module
 		addSetting(explosions);
 		addSetting(fluidPush);
 		addSetting(entityPush);
+		addSetting(blocks);
+		addSetting(sinking);
+		addSetting(fishing);
 		addSetting(mode);
 	}
 
@@ -80,6 +92,21 @@ public final class VelocityModule extends Module
 	public boolean cancelsEntityPush()
 	{
 		return isEnabled() && entityPush.isChecked();
+	}
+
+	public boolean cancelsBlockPush()
+	{
+		return isEnabled() && blocks.isChecked();
+	}
+
+	public boolean cancelsSinking()
+	{
+		return isEnabled() && sinking.isChecked();
+	}
+
+	public boolean cancelsFishing()
+	{
+		return isEnabled() && fishing.isChecked();
 	}
 
 	public enum Mode

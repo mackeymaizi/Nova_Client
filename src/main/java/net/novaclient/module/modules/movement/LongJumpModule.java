@@ -33,6 +33,17 @@ public final class LongJumpModule extends Module
 	private final DoubleSetting cooldown = new DoubleSetting("Cooldown",
 		"Ticks to wait between jumps.", 10, 0, 100, 1);
 
+	private final BoolSetting onlyOnGround = new BoolSetting("Only on ground",
+		"Only boost while you are standing on the ground.", true);
+
+	private final BoolSetting autoDisable = new BoolSetting("Auto disable",
+		"Turns the module off after a single jump.", false);
+
+	private final BoolSetting disableOnRubberband = new BoolSetting(
+		"Disable on rubberband",
+		"Turns the module off when the server teleports you back.", true);
+
+	private double lastY;
 	private int timer;
 
 	public LongJumpModule()
@@ -45,6 +56,9 @@ public final class LongJumpModule extends Module
 		addSetting(vertical);
 		addSetting(autoJump);
 		addSetting(cooldown);
+		addSetting(onlyOnGround);
+		addSetting(autoDisable);
+		addSetting(disableOnRubberband);
 
 		subscribe(UpdateEvent.class, e -> onUpdate());
 	}
@@ -53,6 +67,7 @@ public final class LongJumpModule extends Module
 	public void onEnable()
 	{
 		timer = 0;
+		lastY = 0;
 	}
 
 	private void onUpdate()
@@ -60,6 +75,16 @@ public final class LongJumpModule extends Module
 		var player = NovaClient.MC.player;
 		if(player == null)
 			return;
+
+		// Rubberband detection: the server teleported us back a long way.
+		if(disableOnRubberband.isChecked() && lastY != 0
+			&& Math.abs(player.getY() - lastY) > 3)
+		{
+			setEnabled(false);
+			return;
+		}
+
+		lastY = player.getY();
 
 		if(timer > 0)
 		{
@@ -75,7 +100,7 @@ public final class LongJumpModule extends Module
 		if(!jumpKey && !autoJump.isChecked())
 			return;
 
-		if(!player.onGround() && !autoJump.isChecked())
+		if(onlyOnGround.isChecked() && !player.onGround() && !autoJump.isChecked())
 			return;
 
 		float yawRad = player.getYRot() * Mth.DEG_TO_RAD;
@@ -85,5 +110,8 @@ public final class LongJumpModule extends Module
 		player.addDeltaMovement(new Vec3(0, vertical.get(), 0));
 
 		timer = cooldown.get().intValue();
+
+		if(autoDisable.isChecked())
+			setEnabled(false);
 	}
 }
