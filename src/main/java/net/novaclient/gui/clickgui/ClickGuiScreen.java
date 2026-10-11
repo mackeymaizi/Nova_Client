@@ -17,6 +17,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.novaclient.NovaClient;
 import net.novaclient.gui.GuiTheme;
+import net.novaclient.gui.KeyNames;
 import net.novaclient.module.Module;
 import net.novaclient.module.ModuleCategory;
 import net.novaclient.module.ModuleManager;
@@ -56,9 +57,34 @@ public final class ClickGuiScreen extends Screen
 	/** True when the screen is too small to fit everything and we collapsed. */
 	private boolean forceCollapsed;
 
+	/**
+	 * True while an open ClickGUI is waiting for a key press to rebind a
+	 * module. Used by {@link ModuleManager} to avoid toggling modules with
+	 * the key that is being bound.
+	 */
+	private static boolean rebinding;
+
 	public ClickGuiScreen()
 	{
 		super(Component.literal("Nova ClickGUI"));
+	}
+
+	/** Whether a ClickGUI is currently capturing a key for rebinding. */
+	public static boolean isRebinding()
+	{
+		return rebinding;
+	}
+
+	/** Persists module settings and keybinds to disk immediately. */
+	public static void saveConfig()
+	{
+		if(NovaClient.INSTANCE != null)
+			NovaClient.INSTANCE.getConfig().save();
+	}
+
+	private static void setRebinding(boolean value)
+	{
+		rebinding = value;
 	}
 
 	@Override
@@ -133,6 +159,20 @@ public final class ClickGuiScreen extends Screen
 			context.drawString(font, hint, MARGIN,
 				height - font.lineHeight - 4, GuiTheme.TEXT_DIM);
 		}
+
+		// Rebinding hint, centred at the bottom.
+		Module pending = rebindingModule();
+		if(pending != null)
+		{
+			String hint = "Press a key to bind " + pending.displayName()
+				+ " - Esc/Delete to clear.";
+			int w = font.width(hint);
+			int hx = (width - w) / 2;
+			int hy = height - font.lineHeight - 4;
+			context.fill(hx - 4, hy - 3, hx + w + 4,
+				hy + font.lineHeight + 1, 0xCC16161C);
+			context.drawString(font, hint, hx, hy, 0xFFFFFFFF);
+		}
 	}
 
 	@Override
@@ -196,6 +236,21 @@ public final class ClickGuiScreen extends Screen
 	@Override
 	public boolean keyPressed(KeyEvent event)
 	{
+		// If a module is waiting for a key, capture it here.
+		Module target = rebindingModule();
+		if(target != null)
+		{
+			// Esc or Delete unbinds; any other key binds.
+			if(event.key() == 256 || event.key() == 261)
+				target.setKeybind(-1);
+			else
+				target.setKeybind(event.key());
+
+			clearRebinding();
+			saveConfig();
+			return true;
+		}
+
 		// Esc closes the GUI.
 		if(event.key() == 256)
 		{
@@ -206,9 +261,39 @@ public final class ClickGuiScreen extends Screen
 		return super.keyPressed(event);
 	}
 
+	/** Returns the module currently awaiting a key, or null. */
+	private Module rebindingModule()
+	{
+		for(CategoryPanel panel : panels)
+			if(panel.rebinding != null)
+				return panel.rebinding;
+
+		return null;
+	}
+
+	private void clearRebinding()
+	{
+		for(CategoryPanel panel : panels)
+			panel.rebinding = null;
+
+		setRebinding(false);
+	}
+
+	/** Recomputes the static "capturing a key" flag from panel state. */
+	private void syncRebindingFlag()
+	{
+		setRebinding(rebindingModule() != null);
+	}
+
 	@Override
 	public void onClose()
 	{
+		// Stop listening for keys and persist any GUI changes.
+		clearRebinding();
+
+		if(NovaClient.INSTANCE != null)
+			NovaClient.INSTANCE.getConfig().save();
+
 		if(minecraft != null)
 			minecraft.setScreen(null);
 	}
@@ -240,6 +325,9 @@ public final class ClickGuiScreen extends Screen
 		private Module expandedModule;
 		private final List<SettingRow> settingRows = new ArrayList<>();
 
+		/** Module currently waiting for a key press to rebind, or null. */
+		private Module rebinding;
+
 		private CategoryPanel(ModuleCategory category, int x, int y, int width,
 			List<Module> modules)
 		{
@@ -269,6 +357,13 @@ public final class ClickGuiScreen extends Screen
 			this.y = y;
 		}
 
+		/** Height of the expanded module body (keybind row + settings). */
+		private int expandedBody()
+		{
+			// One row for the keybind, plus one per setting, plus padding.
+			return (settingRows.size() + 1) * ROW_HEIGHT + 4;
+		}
+
 		private int bodyHeight()
 		{
 			if(!expanded)
@@ -279,7 +374,7 @@ public final class ClickGuiScreen extends Screen
 			{
 				h += ROW_HEIGHT;
 				if(module == expandedModule)
-					h += settingRows.size() * ROW_HEIGHT + 4;
+					h += expandedBody();
 			}
 
 			return h + 4;
@@ -358,6 +453,10 @@ public final class ClickGuiScreen extends Screen
 				if(module == expandedModule)
 				{
 					int sy = rowY + ROW_HEIGHT;
+					renderKeybindRow(context, font, module, x + 2,
+						sy, width - 4, mouseX, mouseY);
+					sy += ROW_HEIGHT;
+
 					for(SettingRow row : settingRows)
 					{
 						row.render(context, font, x + 6, sy, width - 12,
@@ -368,12 +467,36 @@ public final class ClickGuiScreen extends Screen
 
 				rowY += ROW_HEIGHT;
 				if(module == expandedModule)
-					rowY += settingRows.size() * ROW_HEIGHT + 4;
+					rowY += expandedBody();
 			}
 
 			// Border.
 			context.renderOutline(x, y, x + width, bodyBottom,
 				GuiTheme.PANEL_BORDER);
+		}
+
+		/** Draws the "Keybind" row for an expanded module. */
+		private void renderKeybindRow(GuiGraphics context,
+			net.minecraft.client.gui.Font font, Module module, int x, int y,
+			int width, int mouseX, int mouseY)
+		{
+			boolean waiting = rebinding == module;
+			boolean hovered = mouseX >= x && mouseX <= x + width && mouseY >= y
+				&& mouseY <= y + ROW_HEIGHT;
+
+			if(waiting)
+				context.fill(x, y, x + width, y + ROW_HEIGHT,
+					GuiTheme.PRIMARY_TOP);
+			else if(hovered)
+				context.fill(x, y, x + width, y + ROW_HEIGHT, GuiTheme.HOVER);
+
+			String value = waiting ? "<press key>"
+				: KeyNames.of(module.keybind());
+
+			context.drawString(font, "Keybind", x + 4, y + 3,
+				waiting ? 0xFFFFFFFF : GuiTheme.TEXT_DIM);
+			context.drawString(font, value, x + width - font.width(value) - 6,
+				y + 3, waiting ? 0xFFFFFFFF : GuiTheme.TEXT);
 		}
 
 		private boolean mouseClicked(double mouseX, double mouseY, int button)
@@ -404,13 +527,12 @@ public final class ClickGuiScreen extends Screen
 						// Meteor-style chat feedback on toggle.
 						module.sendToggledMsg();
 					}
-					else if(button == 1)
-						expandedModule =
-							expandedModule == module ? null : module;
-					else if(button == 2)
+					else if(button == 1 || button == 2)
 					{
 						expandedModule =
 							expandedModule == module ? null : module;
+						rebinding = null;
+
 						if(expandedModule != null)
 							rebuildSettingRows(module);
 					}
@@ -420,6 +542,32 @@ public final class ClickGuiScreen extends Screen
 				if(module == expandedModule)
 				{
 					int sy = rowY + ROW_HEIGHT;
+
+					// Keybind row (first row of the expanded body).
+					if(mouseY >= sy && mouseY <= sy + ROW_HEIGHT)
+					{
+						if(button == 0)
+						{
+							rebinding = rebinding == module ? null : module;
+							// Only one module can listen at a time.
+							if(rebinding != null)
+								for(CategoryPanel p : panels)
+									if(p != this)
+										p.rebinding = null;
+
+							syncRebindingFlag();
+						}
+						else if(button == 2)
+						{
+							rebinding = null;
+							syncRebindingFlag();
+						}
+
+						return true;
+					}
+
+					sy += ROW_HEIGHT;
+
 					for(SettingRow row : settingRows)
 					{
 						if(row.mouseClicked(mouseX, mouseY, x + 6, sy,
@@ -431,7 +579,7 @@ public final class ClickGuiScreen extends Screen
 
 				rowY += ROW_HEIGHT;
 				if(module == expandedModule)
-					rowY += settingRows.size() * ROW_HEIGHT + 4;
+					rowY += expandedBody();
 			}
 
 			return true;
@@ -495,11 +643,15 @@ public final class ClickGuiScreen extends Screen
 			if(setting instanceof BoolSetting bool)
 			{
 				bool.setChecked(!bool.isChecked());
+				saveConfig();
 				return true;
 			}
 
 			if(setting instanceof net.novaclient.setting.EnumSetting<?> e)
+			{
 				nova$cycleEnum(e);
+				saveConfig();
+			}
 
 			return true;
 		}

@@ -219,6 +219,11 @@ public final class ModuleManager
 			&& !(screen instanceof net.novaclient.gui.clickgui.ClickGuiScreen))
 			return;
 
+		// Never toggle a module with the key currently being bound in the
+		// ClickGUI - the user is choosing a bind, not firing it.
+		if(net.novaclient.gui.clickgui.ClickGuiScreen.isRebinding())
+			return;
+
 		for(Module module : MODULES)
 			if(module.hasKeybind() && module.keybind() == event.key())
 				module.toggle();
