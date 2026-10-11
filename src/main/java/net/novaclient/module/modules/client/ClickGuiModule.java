@@ -36,6 +36,14 @@ public final class ClickGuiModule extends Module
 	private final BoolSetting animate = new BoolSetting("Animation",
 		"Animates the opening/closing of the ClickGUI.", true);
 
+	private final BoolSetting chatFeedback = new BoolSetting("Chat feedback",
+		"Prints a chat message when a module is toggled.", true);
+
+	private final BoolSetting forceCollapse = new BoolSetting(
+		"Force collapse",
+		"Collapse every category when the screen is too small to fit them.",
+		true);
+
 	private final ColorSetting accent = new ColorSetting("Accent",
 		"The accent color used for enabled modules.", PRIMARY_TOP);
 
@@ -48,6 +56,8 @@ public final class ClickGuiModule extends Module
 		addSetting(opacity);
 		addSetting(shadows);
 		addSetting(animate);
+		addSetting(chatFeedback);
+		addSetting(forceCollapse);
 		addSetting(accent);
 	}
 
@@ -69,6 +79,18 @@ public final class ClickGuiModule extends Module
 	public boolean animate()
 	{
 		return animate.isChecked();
+	}
+
+	/** Whether toggling a module should print a chat message. */
+	public boolean chatFeedback()
+	{
+		return chatFeedback.isChecked();
+	}
+
+	/** Whether to collapse everything when the screen is too small. */
+	public boolean forceCollapse()
+	{
+		return forceCollapse.isChecked();
 	}
 
 	public Color accent()
