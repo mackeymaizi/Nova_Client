@@ -34,6 +34,12 @@ public final class AntiAfkModule extends Module
 	private final IntSetting interval = new IntSetting("Interval",
 		"Seconds between actions.", 3, 1, 60, 1);
 
+	private final IntSetting waitTimeRandom = new IntSetting("Wait time random",
+		"Randomises the interval by up to this many seconds.", 0, 0, 30, 1);
+
+	private final BoolSetting showWaitTime = new BoolSetting("Show wait time",
+		"Shows the time until the next action next to the module name.", false);
+
 	private final Random random = new Random();
 	private int timer;
 	private int moveTicks;
@@ -49,8 +55,19 @@ public final class AntiAfkModule extends Module
 		addSetting(jump);
 		addSetting(swing);
 		addSetting(interval);
+		addSetting(waitTimeRandom);
+		addSetting(showWaitTime);
 
 		subscribe(UpdateEvent.class, e -> onUpdate());
+	}
+
+	@Override
+	public String getInfoString()
+	{
+		if(!showWaitTime.isChecked())
+			return null;
+
+		return (timer / 20) + "s";
 	}
 
 	@Override
@@ -85,7 +102,11 @@ public final class AntiAfkModule extends Module
 			return;
 		}
 
-		timer = interval.get() * 20;
+		int base = interval.get();
+		int jitter = waitTimeRandom.get() > 0
+			? random.nextInt(waitTimeRandom.get() * 2 + 1) - waitTimeRandom.get()
+			: 0;
+		timer = Math.max(1, base + jitter) * 20;
 
 		int choice = random.nextInt(3);
 

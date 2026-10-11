@@ -79,6 +79,25 @@ public final class CrystalAuraModule extends Module
 	private final DoubleSetting breakRange = new DoubleSetting("Break range",
 		"Range in which to break crystals.", 4.5, 0, 6, 0.1);
 
+	private final DoubleSetting wallsRange = new DoubleSetting("Walls range",
+		"Range at which crystals can be placed/broken through walls.", 3.5, 0, 6,
+		0.1);
+
+	private final BoolSetting predictMovement = new BoolSetting(
+		"Predict movement", "Predicts the target's movement when aiming.", true);
+
+	private final BoolSetting ignoreNakeds = new BoolSetting("Ignore nakeds",
+		"Ignores players that have no armour.", false);
+
+	private final BoolSetting antiWeakness = new BoolSetting("Anti weakness",
+		"Switches to a sword when you have the Weakness effect.", true);
+
+	private final BoolSetting pauseOnUse = new BoolSetting("Pause on use",
+		"Pauses while you are using an item.", true);
+
+	private final BoolSetting pauseOnMine = new BoolSetting("Pause on mine",
+		"Pauses while you are mining a block.", true);
+
 	public int kaTimer;
 
 	private LivingEntity target;
@@ -105,6 +124,12 @@ public final class CrystalAuraModule extends Module
 		addSetting(placeRange);
 		addSetting(breakDelay);
 		addSetting(breakRange);
+		addSetting(wallsRange);
+		addSetting(predictMovement);
+		addSetting(ignoreNakeds);
+		addSetting(antiWeakness);
+		addSetting(pauseOnUse);
+		addSetting(pauseOnMine);
 
 		subscribe(TickEvent.class, this::onTick);
 	}
@@ -131,6 +156,12 @@ public final class CrystalAuraModule extends Module
 
 		if(kaTimer > 0)
 			kaTimer--;
+
+		if(pauseOnUse.isChecked() && mc.player.isUsingItem())
+			return;
+
+		if(pauseOnMine.isChecked() && mc.gameMode.isDestroying())
+			return;
 
 		if(target == null || !target.isAlive()
 			|| target.distanceToSqr(mc.player) > targetRange.get()
@@ -167,6 +198,7 @@ public final class CrystalAuraModule extends Module
 		List<Player> players = EntityUtils.getPlayers();
 
 		return players.stream().filter(Player::isAlive)
+			.filter(p -> !ignoreNakeds.isChecked() || p.getArmorValue() > 0)
 			.min(Comparator.comparingDouble(p -> p.getHealth())).orElse(null);
 	}
 
@@ -208,7 +240,8 @@ public final class CrystalAuraModule extends Module
 				ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
 			BlockHitResult result = mc.level.clip(clip);
 			if(result != null && !result.getBlockPos()
-				.equals(BlockPos.containing(pos)))
+				.equals(BlockPos.containing(pos))
+				&& player.getEyePosition().distanceTo(pos) > wallsRange.get())
 				continue;
 
 			double targetDamage = estimateDamage(pos, target, 6f);

@@ -43,6 +43,9 @@ public final class VeinMinerModule extends Module
 	private final BoolSetting checkLos = new BoolSetting("Check line of sight",
 		"Requires a clear line of sight to each block.", false);
 
+	private final BoolSetting swingHand = new BoolSetting("Swing hand",
+		"Swing your hand when mining each block.", true);
+
 	private final EnumSetting<BreakMode> breakMode = new EnumSetting<>(
 		"Break mode",
 		"Legit: start+continue packets, safer. Speed: raw packets, fastest.",
@@ -63,6 +66,7 @@ public final class VeinMinerModule extends Module
 		addSetting(breakMode);
 		addSetting(flatMode);
 		addSetting(checkLos);
+		addSetting(swingHand);
 
 		subscribe(BlockBreakingProgressEvent.class, this::onBreaking);
 		subscribe(UpdateEvent.class, e -> onUpdate());
@@ -161,7 +165,7 @@ public final class VeinMinerModule extends Module
 
 			BlockUtils.breakBlock(pos, breakMode.get());
 
-			if(NovaClient.MC.player != null)
+			if(swingHand.isChecked() && NovaClient.MC.player != null)
 				NovaClient.MC.player.swing(
 					net.minecraft.world.InteractionHand.MAIN_HAND);
 

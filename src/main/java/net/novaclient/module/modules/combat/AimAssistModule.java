@@ -42,8 +42,20 @@ public final class AimAssistModule extends Module
 	private final BoolSetting ignorePassive = new BoolSetting("Ignore passive",
 		"Skips passive mobs.", true);
 
+	private final BoolSetting ignoreMouseInput = new BoolSetting(
+		"Ignore mouse input",
+		"Keeps aiming even while you are moving the mouse yourself.", false);
+
+	private final BoolSetting aimWhileBlocking = new BoolSetting(
+		"Aim while blocking",
+		"Keep aiming while you are blocking with a shield or sword.", false);
+
 	private final EnumSetting<AimAt> aimAt = new EnumSetting<>("Aim at",
 		"Which point of the hitbox to aim at.", AimAt.values(), AimAt.Center);
+
+	private double lastMouseX = Double.NaN;
+	private double lastMouseY = Double.NaN;
+	private int mouseAbortTicks;
 
 	public AimAssistModule()
 	{
@@ -56,6 +68,8 @@ public final class AimAssistModule extends Module
 		addSetting(fov);
 		addSetting(checkLos);
 		addSetting(ignorePassive);
+		addSetting(ignoreMouseInput);
+		addSetting(aimWhileBlocking);
 		addSetting(aimAt);
 
 		subscribe(UpdateEvent.class, e -> onUpdate());
@@ -66,6 +80,24 @@ public final class AimAssistModule extends Module
 		var player = NovaClient.MC.player;
 		if(player == null)
 			return;
+
+		// "Aim while blocking" off = do not aim while using an item.
+		if(!aimWhileBlocking.isChecked() && player.isUsingItem())
+			return;
+
+		// "Ignore mouse input" off = pause for a moment whenever you move the
+		// mouse yourself, so manual aiming is not fought by the module.
+		if(!ignoreMouseInput.isChecked() && mouseMovedThisTick())
+		{
+			mouseAbortTicks = 5;
+			return;
+		}
+
+		if(mouseAbortTicks > 0)
+		{
+			mouseAbortTicks--;
+			return;
+		}
 
 		List<Entity> candidates = EntityUtils.getAliveEntities(Entity.class,
 			e -> e != player && e instanceof LivingEntity
@@ -142,6 +174,21 @@ public final class AimAssistModule extends Module
 			return target;
 
 		return current + Math.copySign(maxStep, delta);
+	}
+
+	/** Detects a manual mouse movement since the previous tick. */
+	private boolean mouseMovedThisTick()
+	{
+		var mouse = NovaClient.MC.mouseHandler;
+		double x = mouse.xpos();
+		double y = mouse.ypos();
+
+		boolean moved = !Double.isNaN(lastMouseX)
+			&& (Math.abs(x - lastMouseX) > 0.5 || Math.abs(y - lastMouseY) > 0.5);
+
+		lastMouseX = x;
+		lastMouseY = y;
+		return moved;
 	}
 
 	public enum AimAt

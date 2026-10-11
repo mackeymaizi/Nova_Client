@@ -30,6 +30,7 @@ import net.novaclient.module.Module;
 import net.novaclient.module.ModuleCategory;
 import net.novaclient.setting.BoolSetting;
 import net.novaclient.setting.DoubleSetting;
+import net.novaclient.setting.EnumSetting;
 import net.novaclient.setting.IntSetting;
 import net.novaclient.util.ChatUtils;
 import net.novaclient.util.EntityUtils;
@@ -79,6 +80,29 @@ public final class AnchorAuraModule extends Module
 	private final DoubleSetting breakRange = new DoubleSetting("Break range",
 		"Range in which to break anchors.", 4.5, 0, 6, 0.1);
 
+	private final DoubleSetting wallsRange = new DoubleSetting("Walls range",
+		"Range at which anchors can be placed/broken through walls.", 3.5, 0, 6,
+		0.1);
+
+	private final BoolSetting airPlace = new BoolSetting("Air place",
+		"Allows placing anchors in mid-air.", false);
+
+	private final BoolSetting pauseOnUse = new BoolSetting("Pause on use",
+		"Pauses while you are using an item.", true);
+
+	private final BoolSetting pauseOnMine = new BoolSetting("Pause on mine",
+		"Pauses while you are mining a block.", true);
+
+	private final BoolSetting pauseOnCA = new BoolSetting("Pause on CA",
+		"Pauses while CrystalAura is enabled.", false);
+
+	private final BoolSetting swing = new BoolSetting("Swing",
+		"Swing your hand when interacting.", true);
+
+	private final EnumSetting<TargetPriority> targetPriority = new EnumSetting<>(
+		"Target priority", "Which target to attack first.",
+		TargetPriority.values(), TargetPriority.LowestHealth);
+
 	private BlockPos bestPlacePos;
 	private double bestPlaceDamage;
 	private BlockPos bestBreakPos;
@@ -108,6 +132,13 @@ public final class AnchorAuraModule extends Module
 		addSetting(chargeDelay);
 		addSetting(breakDelay);
 		addSetting(breakRange);
+		addSetting(wallsRange);
+		addSetting(airPlace);
+		addSetting(pauseOnUse);
+		addSetting(pauseOnMine);
+		addSetting(pauseOnCA);
+		addSetting(swing);
+		addSetting(targetPriority);
 
 		subscribe(TickEvent.class, this::onTick);
 	}
@@ -144,6 +175,20 @@ public final class AnchorAuraModule extends Module
 		if(mc.player.isUsingItem() || mc.gameMode.isDestroying())
 			return;
 
+		if(pauseOnUse.isChecked() && mc.player.isUsingItem())
+			return;
+
+		if(pauseOnMine.isChecked() && mc.gameMode.isDestroying())
+			return;
+
+		if(pauseOnCA.isChecked())
+		{
+			var crystalAura = net.novaclient.module.ModuleManager
+				.get(CrystalAuraModule.class);
+			if(crystalAura != null && crystalAura.isEnabled())
+				return;
+		}
+
 		// Find a target
 		if(target == null || !target.isAlive()
 			|| target.distanceToSqr(mc.player) > targetRange.get()
@@ -162,9 +207,14 @@ public final class AnchorAuraModule extends Module
 		var mc = NovaClient.MC;
 		List<Player> players = EntityUtils.getPlayers();
 
-		return players.stream()
-			.filter(Player::isAlive)
-			.min(Comparator.comparingDouble(p -> p.getHealth())).orElse(null);
+		Comparator<Player> cmp = switch(targetPriority.get())
+		{
+			case Closest -> Comparator
+				.comparingDouble(p -> p.distanceToSqr(mc.player));
+			case LowestHealth -> Comparator.comparingDouble(Player::getHealth);
+		};
+
+		return players.stream().filter(Player::isAlive).min(cmp).orElse(null);
 	}
 
 	private void findAnchors()
@@ -202,7 +252,26 @@ public final class AnchorAuraModule extends Module
 				ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
 			BlockHitResult result = mc.level.clip(clip);
 			if(result == null || !result.getBlockPos().equals(pos))
-				continue;
+			{
+				// Not directly visible - only allowed within the walls range.
+				if(player.getEyePosition().distanceTo(center) > wallsRange.get())
+					continue;
+			}
+
+			if(isPlacing && !airPlace.isChecked())
+			{
+				// Require a solid neighbour to place against.
+				boolean hasNeighbour = false;
+				for(Direction dir : Direction.values())
+					if(!mc.level.getBlockState(pos.relative(dir)).isAir())
+					{
+						hasNeighbour = true;
+						break;
+					}
+
+				if(!hasNeighbour)
+					continue;
+			}
 
 			// Very rough damage estimate (explosion radius 5).
 			double targetDamage = estimateDamage(center, target, 5f);
@@ -323,7 +392,8 @@ public final class AnchorAuraModule extends Module
 
 		BlockHitResult hit = new BlockHitResult(hitVec, side, pos, false);
 		gameMode.nova_rightClickBlock(pos, side, hit.getLocation());
-		mc.player.swing(InteractionHand.MAIN_HAND);
+		if(swing.isChecked())
+			mc.player.swing(InteractionHand.MAIN_HAND);
 	}
 
 	private void interactBlock(BlockPos pos, Vec3 center)
@@ -409,5 +479,10 @@ public final class AnchorAuraModule extends Module
 	public String getInfoString()
 	{
 		return target == null ? null : target.getName().getString();
+	}
+
+	public enum TargetPriority
+	{
+		LowestHealth, Closest;
 	}
 }
