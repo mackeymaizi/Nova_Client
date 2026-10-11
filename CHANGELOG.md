@@ -13,6 +13,7 @@
 | 1.3.1-MC26.2 | 2026-10-10 | **修复启动崩溃**：`MultiPlayerGameModeMixin.nova_onContinueDestroyBlock` 注入的是返回 `boolean` 的 `continueDestroyBlock`，回调却写成了 `CallbackInfo`，Mixin 要求 `CallbackInfoReturnable<Boolean>`。任何触及 `MultiPlayerGameMode` 的模组（如 Item Interactions / Easy Shulker Boxes）都会触发 `InvalidInjectionException`，导致游戏在初始化阶段直接崩溃 |
 | 1.3.2-MC26.2 | 2026-10-10 | 新增 **PacketFly 模块**（Meteor Rejects 移植，发包飞行；水平/垂直速度上限 100000 格/秒，另可配 packets-per-tick / teleport / invalid-packet / anti-kick）。**修复 X-Ray 在 Sodium 下「透明度模式」静默失效**：`BlockRendererMixin` 的两处 `@At` 锚点把 owner 写成了 `QuadViewImpl`，但字节码里是 `MutableQuadViewImpl`（`getRenderType` / `baseColor` 声明在父类，javac 却按接收者静态类型发射 `invokevirtual`），而 Mixin 对 owner 是精确匹配 —— 注入从未命中，因为 `require = 0` 所以一直没有报错。模块总数 77 → **78** |
 | 1.3.3-MC26.2 | 2026-10-11 | **ClickGUI 自适应布局**：分类面板改为按屏宽自动计算的响应式网格 —— 列数随宽度自动增减（面板宽 120 → 最小 84 自适应），保证**任何窗口尺寸下所有分类标题都留在屏内**、不再像以前那样横向排开把 World 挤出屏幕；窗口小到放不下时**全部折叠**只留标题栏（底部有提示文字），设置里新增 `Force collapse` 可关掉这个行为。**模块切换聊天反馈**：仿 Meteor，点击切换模块时往聊天栏打一条 `Toggled <模块名> on/off.`（绿色 on / 红色 off），设置里新增 `Chat feedback` 开关（`Module.sendToggledMsg()` 也顺带重写成这个格式，全局 + 单模块两级可控）。面板滚动范围改用实际可见高度计算，不再固定 `height - 60` |
+| 1.3.4-MC26.2 | 2026-10-11 | **ClickGUI 默认绑定右 Shift**（`ClickGuiModule.DEFAULT_KEYBIND = GLFW_KEY_RIGHT_SHIFT`，和 Meteor 一致），仍可用 `.bind` 改键。**按 `.` 直接开命令输入**：仿原版 `/` 的行为，在没有打开任何界面时按 `.` 会打开聊天栏并预填 `.`，光标停在后面等输入；新增 `KeyboardHandlerMixin` 的 `nova$commandShortcut` 负责这段逻辑，`KeyPressEvent` 照旧投递。**顺手修**：`ModuleManager.onKeyPress` 之前不检查当前界面，导致在聊天/背包里按模块绑定键也会触发模块开关 —— 现在除 Nova 自己的 ClickGUI 外，任何界面打开时都忽略模块按键 |
 
 ---
 

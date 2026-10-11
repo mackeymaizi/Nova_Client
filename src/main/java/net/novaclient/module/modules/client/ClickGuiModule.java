@@ -9,6 +9,8 @@ package net.novaclient.module.modules.client;
 
 import java.awt.Color;
 
+import org.lwjgl.glfw.GLFW;
+
 import net.novaclient.NovaClient;
 import net.novaclient.gui.clickgui.ClickGuiScreen;
 import net.novaclient.module.Module;
@@ -23,6 +25,9 @@ public final class ClickGuiModule extends Module
 {
 	public static final Color PRIMARY_TOP = new Color(37, 99, 235);
 	public static final Color PRIMARY_BOTTOM = new Color(78, 72, 230);
+
+	/** Default keybind: right shift (matches Meteor's default). */
+	public static final int DEFAULT_KEYBIND = GLFW.GLFW_KEY_RIGHT_SHIFT;
 
 	private final DoubleSetting scale = new DoubleSetting("Scale",
 		"The scale of the ClickGUI.", 1.0, 0.5, 2.0, 0.05);
@@ -51,6 +56,9 @@ public final class ClickGuiModule extends Module
 	{
 		super("ClickGUI", "Opens Nova's ClickGUI.", ModuleCategory.CLIENT);
 		displayName("点击界面");
+
+		// Default keybind: right shift. Users can rebind with `.bind`.
+		setKeybind(DEFAULT_KEYBIND);
 
 		addSetting(scale);
 		addSetting(opacity);
