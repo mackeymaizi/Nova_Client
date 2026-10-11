@@ -100,8 +100,6 @@ public final class JesusModule extends Module
 		if(packetTimer < 4)
 			return;
 
-		event.cancel();
-
 		double x = packet.getX(0);
 		double y = packet.getY(0);
 		double z = packet.getZ(0);
@@ -118,7 +116,10 @@ public final class JesusModule extends Module
 			newPacket = new PosRot(x, y, z, packet.getYRot(0),
 				packet.getXRot(0), true, player.horizontalCollision);
 
-		player.connection.getConnection().send(newPacket);
+		// Replace the outgoing packet in place. Do NOT cancel + re-send here:
+		// the new packet would post another PacketSendEvent, re-enter this
+		// handler and recurse until the stack overflows.
+		event.setPacket(newPacket);
 	}
 
 	private boolean isOverLiquid()
