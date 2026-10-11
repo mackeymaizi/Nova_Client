@@ -25,6 +25,7 @@
 • 窗口整体夹取在屏幕内，改分辨率后不会跑到屏幕外够不着。
 • 折叠/展开开关从右键标题栏改为**右键（或中键）切换**，左键拖标题栏移动。
 （`Config` 新增 `loadClickGuiWindows()` / `saveClickGuiWindows()`） |
+| 1.3.9-MC1.21.11 | 2026-10-11 | **修复 X-Ray 装了 Sodium 后完全没效果**（`26.2` 分支同步修复，编号 1.3.8）。真正原因不是锚点写错，而是 **`BlockRendererMixin` 的 `@Shadow` 注入失败导致整个 Mixin 被丢弃**：`state` / `pos` / `level` 三个字段其实声明在**父类** `AbstractBlockRenderContext` 上，而 Mixin 对「继承来的字段」只能靠 refMap 解析 —— 本项目用 Loom 直接把注解串改写成 intermediary、**根本不生成 refMap**，于是 apply 阶段直接抛<br>`InvalidMixinException: @Shadow field state was not located in the target class ... . No refMap loaded`（实测日志原文，游戏启动时打一条 WARN 就悄悄跳过），整个 `BlockRendererMixin` 作废，X-Ray 在 Sodium 下自然一点反应都没有（连透明度模式也一起没了）。<br>**改法：彻底不要 `@Shadow`**，改为从方法参数里拿值 —— `prepare(ChunkBuildBuffers, LevelSlice, ...)` 的第 2 个参数就是 level，`renderModel(model, BlockState, BlockPos, origin)` 直接给了方块与坐标；两者跑在同一个 chunk 构建工作线程上，用一个 `ThreadLocal` 把 `(state, pos, level)` 传给后面的 `processQuad` / `bufferQuad` 钩子。<br>顺带一提：`RenderSectionManagerMixin`（关遮挡剔除）没有 `@Shadow`，所以一直是正常的；这次真正拖后腿的只有 `BlockRendererMixin`。目标 Sodium 版本经核对：1.21.11 用 0.8.14/0.8.15（两者这批方法签名完全一致）。 |
 
 ## 26.2 分支
 

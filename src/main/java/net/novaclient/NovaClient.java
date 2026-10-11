@@ -19,7 +19,7 @@ import net.novaclient.module.ModuleManager;
 public final class NovaClient implements ClientModInitializer
 {
 	public static final String NAME = "Nova Client";
-	public static final String VERSION = "1.3.8";
+	public static final String VERSION = "1.3.9";
 	public static final String MC_VERSION = "1.21.11";
 	public static final String MOD_ID = "nova";
 
