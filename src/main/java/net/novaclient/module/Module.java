@@ -1,6 +1,7 @@
 package net.novaclient.module;
 
 import net.novaclient.event.EventBus;
+import net.novaclient.module.modules.client.ClickGuiModule;
 import net.novaclient.setting.Setting;
 import net.novaclient.setting.Settings;
 import net.novaclient.util.ChatUtils;
@@ -132,11 +133,35 @@ public abstract class Module
 			.error(args.length == 0 ? message : String.format(message, args));
 	}
 
-	/** Sends the "Module toggled on/off" chat message. */
+	/** Per-module opt-out for the "toggled on/off" chat feedback. */
+	private boolean chatFeedback = true;
+
+	public boolean chatFeedback()
+	{
+		return chatFeedback;
+	}
+
+	public void setChatFeedback(boolean chatFeedback)
+	{
+		this.chatFeedback = chatFeedback;
+	}
+
+	/**
+	 * Sends the Meteor-style "Toggled (module) on/off." chat message when the
+	 * global and per-module chat feedback toggles are both on.
+	 */
 	public void sendToggledMsg()
 	{
-		ChatUtils.nova((enabled ? "Enabled " : "Disabled ")
-			+ net.minecraft.ChatFormatting.WHITE + name
+		ClickGuiModule clickGui = ModuleManager.get(ClickGuiModule.class);
+		if(clickGui != null && !clickGui.chatFeedback())
+			return;
+		if(!chatFeedback)
+			return;
+
+		ChatUtils.nova("Toggled " + net.minecraft.ChatFormatting.WHITE
+			+ displayName + net.minecraft.ChatFormatting.RESET + " "
+			+ (enabled ? net.minecraft.ChatFormatting.GREEN + "on"
+				: net.minecraft.ChatFormatting.RED + "off")
 			+ net.minecraft.ChatFormatting.RESET + ".");
 	}
 

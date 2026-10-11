@@ -28,17 +28,33 @@ import net.novaclient.setting.Settings;
 /**
  * Meteor-style ClickGUI with Nova theming (gradient rgb(37,99,235) ->
  * rgb(78,72,230)).
+ *
+ * <p>The layout is responsive: panels are laid out in a grid that always fits
+ * inside the screen. When the window is too small to show every category, all
+ * panels are force-collapsed so that the category headers stay visible and
+ * reachable instead of drifting off-screen.
  */
 public final class ClickGuiScreen extends Screen
 {
-	private static final int PANEL_WIDTH = 120;
 	private static final int HEADER_HEIGHT = 16;
 	private static final int ROW_HEIGHT = 14;
+
+	private static final int PREFERRED_WIDTH = 120;
+	private static final int MIN_WIDTH = 84;
+	private static final int GAP = 6;
+	private static final int MARGIN = 8;
+	private static final int TOP = 12;
+
+	/** Vertical space reserved for chroma/borders in the scroll maths. */
+	private static final int SCROLL_PADDING = 60;
 
 	private final List<CategoryPanel> panels = new ArrayList<>();
 	private CategoryPanel dragging;
 	private int dragX;
 	private int dragY;
+
+	/** True when the screen is too small to fit everything and we collapsed. */
+	private boolean forceCollapsed;
 
 	public ClickGuiScreen()
 	{
@@ -50,17 +66,55 @@ public final class ClickGuiScreen extends Screen
 	{
 		panels.clear();
 
-		int x = 10;
-		for(ModuleCategory category : ModuleCategory.values())
+		ModuleCategory[] categories = ModuleCategory.values();
+		List<List<Module>> moduleLists = new ArrayList<>();
+
+		for(ModuleCategory category : categories)
+			moduleLists.add(ModuleManager.getByCategory(category));
+
+		// Work out a column count that keeps every panel on-screen. We prefer
+		// the fewest rows (widest columns) that fit horizontally; if even a
+		// single column of minimum-width panels does not fit we still clamp to
+		// one column so nothing is pushed off the right edge.
+		int available = Math.max(MIN_WIDTH, width - MARGIN * 2);
+		int maxColumns = Math.max(1, (available + GAP) / (MIN_WIDTH + GAP));
+		int columns = Math.min(Math.max(1, categories.length), maxColumns);
+
+		int panelWidth = computePanelWidth(columns, available);
+
+		// If we cannot give every panel a readable width, or the resulting
+		// grid is taller than the screen even when collapsed, force-collapse
+		// everything so the headers remain visible.
+		ClickGuiModule config = config();
+		boolean collapseAllowed = config == null || config.forceCollapse();
+		boolean tooNarrow = columns < categories.length;
+		int rowsNeeded = (categories.length + columns - 1) / columns;
+		boolean tooShort = TOP + rowsNeeded * (HEADER_HEIGHT + GAP) > height;
+		forceCollapsed = collapseAllowed && tooNarrow && tooShort;
+
+		int gridWidth = columns * panelWidth + (columns - 1) * GAP;
+		int startX = Math.max(MARGIN, (width - gridWidth) / 2);
+
+		for(int i = 0; i < categories.length; i++)
 		{
-			List<Module> modules = ModuleManager.getByCategory(category);
+			int col = i % columns;
+			int row = i / columns;
 
-			CategoryPanel panel = new CategoryPanel(category, x, 20, PANEL_WIDTH,
-				modules);
+			int px = startX + col * (panelWidth + GAP);
+			int py = TOP + row * (HEADER_HEIGHT + GAP);
+
+			CategoryPanel panel = new CategoryPanel(categories[i], px, py,
+				panelWidth, moduleLists.get(i));
+			panel.expanded = !forceCollapsed && !moduleLists.get(i).isEmpty();
 			panels.add(panel);
-
-			x += PANEL_WIDTH + 6;
 		}
+	}
+
+	private int computePanelWidth(int columns, int available)
+	{
+		int width = (available - (columns - 1) * GAP) / columns;
+		// Never exceed the preferred width, never go under the minimum.
+		return Math.max(MIN_WIDTH, Math.min(PREFERRED_WIDTH, width));
 	}
 
 	@Override
@@ -72,6 +126,13 @@ public final class ClickGuiScreen extends Screen
 
 		for(CategoryPanel panel : panels)
 			panel.render(context, mouseX, mouseY, delta, font);
+
+		if(forceCollapsed)
+		{
+			String hint = "Screen too small - all categories collapsed.";
+			context.drawString(font, hint, MARGIN,
+				height - font.lineHeight - 4, GuiTheme.TEXT_DIM);
+		}
 	}
 
 	@Override
@@ -224,13 +285,19 @@ public final class ClickGuiScreen extends Screen
 			return h + 4;
 		}
 
+		/** Height of the body actually usable without running off-screen. */
+		private int maxVisibleBody()
+		{
+			return Math.max(ROW_HEIGHT, height - y - headerHeight
+				- SCROLL_PADDING);
+		}
+
 		private boolean isHeaderHovered(double mouseX, double mouseY)
 		{
 			return mouseX >= x && mouseX <= x + width && mouseY >= y
 				&& mouseY <= y + headerHeight;
 		}
 
-		@SuppressWarnings({"rawtypes", "unchecked"})
 		private void rebuildSettingRows(Module module)
 		{
 			settingRows.clear();
@@ -243,7 +310,6 @@ public final class ClickGuiScreen extends Screen
 			float delta, net.minecraft.client.gui.Font font)
 		{
 			ClickGuiModule config = config();
-			double scale = config == null ? 1 : config.scale();
 			int opacity = config == null ? 235 : config.opacity();
 
 			// Header with the Nova gradient.
@@ -264,7 +330,6 @@ public final class ClickGuiScreen extends Screen
 			context.fill(x, bodyTop, x + width, bodyBottom,
 				(GuiTheme.PANEL & 0x00FFFFFF) | (Math.min(opacity, 235) << 24));
 
-			int bottom = bodyBottom;
 			int rowY = bodyTop + 2 - scroll;
 
 			for(Module module : modules)
@@ -334,7 +399,11 @@ public final class ClickGuiScreen extends Screen
 				if(mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT)
 				{
 					if(button == 0)
+					{
 						module.toggle();
+						// Meteor-style chat feedback on toggle.
+						module.sendToggledMsg();
+					}
 					else if(button == 1)
 						expandedModule =
 							expandedModule == module ? null : module;
@@ -376,7 +445,7 @@ public final class ClickGuiScreen extends Screen
 				return false;
 
 			int total = bodyHeight();
-			int visible = height - 60;
+			int visible = maxVisibleBody();
 			if(total <= visible)
 				return false;
 
