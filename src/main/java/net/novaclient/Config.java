@@ -30,11 +30,13 @@ public final class Config
 
 	private final Path folder;
 	private final Path modulesFile;
+	private final Path clickGuiFile;
 
 	public Config(Path folder)
 	{
 		this.folder = folder;
 		this.modulesFile = folder.resolve("modules.json");
+		this.clickGuiFile = folder.resolve("clickgui.json");
 	}
 
 	public void load()
@@ -129,5 +131,69 @@ public final class Config
 			return;
 
 		module.setKeybind(element.getAsInt());
+	}
+
+	/**
+	 * Loads saved ClickGUI window positions. Returns a map of category name to
+	 * {@code [x, y, expandedFlag]} - absent entries mean "use the default".
+	 */
+	public java.util.Map<String, double[]> loadClickGuiWindows()
+	{
+		java.util.Map<String, double[]> result = new java.util.HashMap<>();
+		if(!Files.isRegularFile(clickGuiFile))
+			return result;
+
+		try
+		{
+			String json = Files.readString(clickGuiFile);
+			JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+
+			for(String key : root.keySet())
+			{
+				JsonElement element = root.get(key);
+				if(element == null || !element.isJsonObject())
+					continue;
+
+				JsonObject object = element.getAsJsonObject();
+				double x = object.has("x") ? object.get("x").getAsDouble() : -1;
+				double y = object.has("y") ? object.get("y").getAsDouble() : -1;
+				double expanded =
+					object.has("expanded") && object.get("expanded").getAsBoolean()
+						? 1 : 0;
+				result.put(key, new double[] {x, y, expanded});
+			}
+
+		}catch(Exception e)
+		{
+			System.err.println("[Nova] Failed to load ClickGUI layout: " + e);
+		}
+
+		return result;
+	}
+
+	/** Saves ClickGUI window positions: category name -> [x, y, expanded?]. */
+	public void saveClickGuiWindows(java.util.Map<String, double[]> windows)
+	{
+		try
+		{
+			Files.createDirectories(folder);
+
+			JsonObject root = new JsonObject();
+			for(java.util.Map.Entry<String, double[]> entry : windows.entrySet())
+			{
+				double[] v = entry.getValue();
+				JsonObject object = new JsonObject();
+				object.addProperty("x", v[0]);
+				object.addProperty("y", v[1]);
+				object.addProperty("expanded", v[2] != 0);
+				root.add(entry.getKey(), object);
+			}
+
+			Files.writeString(clickGuiFile, GSON.toJson(root));
+
+		}catch(IOException e)
+		{
+			System.err.println("[Nova] Failed to save ClickGUI layout: " + e);
+		}
 	}
 }
